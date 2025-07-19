@@ -7,8 +7,27 @@ const multer = require('multer');
 const app = express();
 const port = 3000;
 
+// 获取懒猫微服环境变量
+const LAZYCAT_BOX_NAME = process.env.LAZYCAT_BOX_NAME || 'unknown';
+const LAZYCAT_BOX_DOMAIN = process.env.LAZYCAT_BOX_DOMAIN || 'heiyu.space';
+const LAZYCAT_APP_DOMAIN = process.env.LAZYCAT_APP_DOMAIN || '';
+const LAZYCAT_APP_ID = process.env.LAZYCAT_APP_ID || '';
+
+console.log('懒猫微服环境信息:');
+console.log('- 设备名称:', LAZYCAT_BOX_NAME);
+console.log('- 设备域名:', LAZYCAT_BOX_DOMAIN);
+console.log('- 应用域名:', LAZYCAT_APP_DOMAIN);
+console.log('- 应用ID:', LAZYCAT_APP_ID);
+
 // 中间件配置
-app.use(cors());
+app.use(cors({
+    origin: [
+        `https://${LAZYCAT_APP_DOMAIN}`,
+        `https://file.${LAZYCAT_BOX_NAME}.${LAZYCAT_BOX_DOMAIN}`,
+        `https://filepickertest.${LAZYCAT_BOX_NAME}.${LAZYCAT_BOX_DOMAIN}`
+    ],
+    credentials: true
+}));
 app.use(express.json());
 
 // 提供静态文件服务
@@ -17,7 +36,7 @@ app.use(express.static(path.join(__dirname, '../web')));
 // 文件上传配置
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads');
+        const uploadDir = '/app/uploads';
         fs.ensureDirSync(uploadDir);
         cb(null, uploadDir);
     },
@@ -31,7 +50,6 @@ const upload = multer({
     storage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     fileFilter: (req, file, cb) => {
-        // 允许常见文件类型
         const allowedTypes = /jpeg|jpg|png|gif|pdf|txt|doc|docx|zip/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = allowedTypes.test(file.mimetype);
@@ -50,7 +68,68 @@ app.get('/api/health', (req, res) => {
         status: 'ok', 
         message: '懒猫文件选择器测试应用后端服务运行正常',
         timestamp: new Date().toISOString(),
-        filepicker_info: '文件选择器在前端运行，后端提供文件管理服务'
+        environment: {
+            boxName: LAZYCAT_BOX_NAME,
+            boxDomain: LAZYCAT_BOX_DOMAIN,
+            appDomain: LAZYCAT_APP_DOMAIN,
+            appId: LAZYCAT_APP_ID
+        }
+    });
+});
+
+// 获取懒猫微服环境信息接口
+app.get('/api/lazycat-env', (req, res) => {
+    console.log('收到环境信息请求');
+    console.log('请求头:', req.headers);
+    console.log('请求来源:', req.get('origin'));
+    
+    try {
+        const envInfo = {
+            boxName: LAZYCAT_BOX_NAME,
+            boxDomain: LAZYCAT_BOX_DOMAIN,
+            appDomain: LAZYCAT_APP_DOMAIN,
+            appId: LAZYCAT_APP_ID,
+            filePickerDomain: `https://file.${LAZYCAT_BOX_NAME}.${LAZYCAT_BOX_DOMAIN}`,
+            timestamp: new Date().toISOString()
+        };
+        
+        console.log('返回环境信息:', envInfo);
+        
+        res.json({
+            success: true,
+            environment: envInfo,
+            debug: {
+                requestTime: new Date().toISOString(),
+                serverStatus: 'running',
+                envVarsLoaded: {
+                    boxName: !!LAZYCAT_BOX_NAME,
+                    boxDomain: !!LAZYCAT_BOX_DOMAIN,
+                    appDomain: !!LAZYCAT_APP_DOMAIN,
+                    appId: !!LAZYCAT_APP_ID
+                }
+            }
+        });
+    } catch (error) {
+        console.error('环境信息接口错误:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 添加调试接口
+app.get('/api/debug', (req, res) => {
+    res.json({
+        environment: process.env,
+        lazycatVars: {
+            LAZYCAT_BOX_NAME,
+            LAZYCAT_BOX_DOMAIN,
+            LAZYCAT_APP_DOMAIN,
+            LAZYCAT_APP_ID
+        },
+        timestamp: new Date().toISOString()
     });
 });
 
@@ -67,7 +146,11 @@ app.get('/api/info', (req, res) => {
             '多种文件类型支持',
             '文件上传下载测试',
             '网盘集成测试'
-        ]
+        ],
+        environment: {
+            boxName: LAZYCAT_BOX_NAME,
+            correctFilePickerDomain: `https://file.${LAZYCAT_BOX_NAME}.${LAZYCAT_BOX_DOMAIN}`
+        }
     });
 });
 
@@ -96,7 +179,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 // 获取上传文件列表
 app.get('/api/files', async (req, res) => {
     try {
-        const uploadDir = path.join(__dirname, '../uploads');
+        const uploadDir = '/app/uploads';
         await fs.ensureDir(uploadDir);
         
         const files = await fs.readdir(uploadDir);
@@ -124,7 +207,7 @@ app.get('/api/files', async (req, res) => {
 app.get('/api/download/:filename', (req, res) => {
     try {
         const filename = req.params.filename;
-        const filePath = path.join(__dirname, '../uploads', filename);
+        const filePath = path.join('/app/uploads', filename);
         
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: '文件不存在' });
@@ -140,7 +223,7 @@ app.get('/api/download/:filename', (req, res) => {
 app.delete('/api/files/:filename', async (req, res) => {
     try {
         const filename = req.params.filename;
-        const filePath = path.join(__dirname, '../uploads', filename);
+        const filePath = path.join('/app/uploads', filename);
         
         if (!await fs.pathExists(filePath)) {
             return res.status(404).json({ error: '文件不存在' });
@@ -165,11 +248,5 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`懒猫文件选择器测试应用后端服务启动成功，端口: ${port}`);
     console.log('提供静态文件服务和文件管理API');
-    console.log('API 端点:');
-    console.log('  GET /api/health - 健康检查');
-    console.log('  GET /api/info - 应用信息');
-    console.log('  POST /api/upload - 文件上传');
-    console.log('  GET /api/files - 获取文件列表');
-    console.log('  GET /api/download/:filename - 文件下载');
-    console.log('  DELETE /api/files/:filename - 删除文件');
+    console.log('懒猫微服环境变量已加载');
 });

@@ -1,21 +1,69 @@
 name: filepickertest
 package: cloud.lazycat.app.filepickertest
 version: 0.0.1
-description:
+description: 懒猫文件选择器测试应用
 license: https://choosealicense.com/licenses/mit/
-homepage:
-author:
+homepage: 
+author: 懒猫微服开发者
 application:
   subdomain: filepickertest
   workdir: /lzcapp/pkg/content/
   routes:
     - /=file:///lzcapp/pkg/content/web/
   upstreams:
-    - location: /api/
+    - location: /api
+
+      working_dir: /lzcapp/pkg/content/backend/
       backend: http://127.0.0.1:3000/
+      # 关键修正：在 upstreams 内注入环境变量 [citation](2)
+      environment:
+        - LAZYCAT_BOX_NAME=${LAZYCAT_BOX_NAME}
+        - LAZYCAT_BOX_DOMAIN=${LAZYCAT_BOX_DOMAIN}
+        - LAZYCAT_APP_DOMAIN=${LAZYCAT_APP_DOMAIN}
+        - LAZYCAT_APP_ID=${LAZYCAT_APP_ID}
+        - NODE_ENV=production
+        - PORT=3000
+      # 增强的启动命令，包含详细调试信息
       backend_launch_command: |
+        echo "=== 懒猫文件选择器后端启动 ==="
         cd /lzcapp/pkg/content/backend
-        ls
+        echo "当前工作目录: $(pwd)"
+        echo "目录内容:"
+        ls -la
+        
+        echo "=== 环境变量检查 ==="
+        echo "LAZYCAT_BOX_NAME: $LAZYCAT_BOX_NAME"
+        echo "LAZYCAT_BOX_DOMAIN: $LAZYCAT_BOX_DOMAIN"
+        echo "LAZYCAT_APP_DOMAIN: $LAZYCAT_APP_DOMAIN"
+        echo "LAZYCAT_APP_ID: $LAZYCAT_APP_ID"
+        
+        echo "=== 安装系统依赖 ==="
         apk update
         apk add nodejs npm
-        npm run start
+        echo "Node.js 版本: $(node --version)"
+        echo "npm 版本: $(npm --version)"
+        
+        echo "=== 检查应用文件 ==="
+        if [ ! -f "package.json" ]; then
+          echo "错误: package.json 文件不存在"
+          echo "当前目录文件列表:"
+          find . -type f -name "*.js" -o -name "*.json" | head -10
+          exit 1
+        fi
+        
+        echo "package.json 内容:"
+        cat package.json
+        
+        # echo "=== 安装依赖 ==="
+        # npm install --production
+        # if [ $? -ne 0 ]; then
+        #   echo "错误: npm install 失败"
+        #   exit 1
+        # fi
+        
+        echo "=== 启动应用 ==="
+        echo "启动时间: $(date)"
+        npm start
+      # 可选：增加调试配置
+      dump_http_headers_when_5xx: true
+      disable_auto_health_chekcing: false

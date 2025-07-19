@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>懒猫文件选择器测试应用</title>
     <link rel="stylesheet" href="style.css">
-    <!-- 引入懒猫文件选择器插件 -->
+    <!-- 引入懒猫文件选择器插件 [citation](1) -->
     <script defer src="https://unpkg.com/@lazycatcloud/lzc-file-pickers@latest/dist/lzc-file-pickers.umd.js"></script>
 </head>
 <body>
@@ -13,9 +13,12 @@
         <header>
             <h1>📁 懒猫文件选择器测试应用</h1>
             <p>懒猫官方文件选择器插件功能测试 - 支持文件选择、目录选择和文件保存</p>
+            <div id="envInfo" class="env-info">
+                <p>正在加载环境信息...</p>
+            </div>
         </header>
 
-        <!-- 文件选择器组件 -->
+        <!-- 文件选择器组件 [citation](1) -->
         <lzc-file-picker
             id="fileSelector"
             type="file"
@@ -47,6 +50,8 @@
                 <button id="openFileSelector" class="btn btn-primary">打开文件选择器</button>
                 <button id="openDirSelector" class="btn btn-info">打开目录选择器</button>
                 <button id="openFileSaver" class="btn btn-success">打开文件保存器</button>
+                <button id="debugEnv" class="btn btn-warning">调试环境信息</button>
+                <button id="testConnection" class="btn btn-secondary">测试连接</button>
             </div>
         </div>
 
@@ -101,63 +106,292 @@
                 this.dirSelector = document.getElementById('dirSelector');
                 this.fileSaver = document.getElementById('fileSaver');
                 this.isInitialized = false;
+                this.lazycatEnv = null;
+                this.apiBaseUrl = '/api';
                 
-                this.initEventListeners();
-                this.updateStatus('文件选择器测试应用已初始化');
-                console.log('懒猫文件选择器测试应用已初始化');
+                this.initApp();
             }
 
-            // 初始化文件选择器 [citation](2)
-            initFilePicker(picker, diskPath = '/api/files/home') {
+            // 初始化应用
+            async initApp() {
                 try {
+                    // 首先测试 API 连接
+                    await this.testApiConnection();
+                    
+                    // 获取懒猫微服环境信息 [citation](2)
+                    await this.loadLazycatEnvironment();
+                    
+                    this.initEventListeners();
+                    this.updateStatus('文件选择器测试应用已初始化');
+                    console.log('懒猫文件选择器测试应用已初始化');
+                } catch (error) {
+                    console.error('应用初始化失败:', error);
+                    this.updateStatus(`应用初始化失败: ${error.message}`);
+                    this.useDefaultEnvironment();
+                }
+            }
+
+            // 测试 API 连接
+            async testApiConnection() {
+                try {
+                    console.log('测试 API 连接...');
+                    const response = await fetch(`${this.apiBaseUrl}/health`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`API 连接失败: HTTP ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    console.log('API 连接成功:', result);
+                    
+                    this.updateResults({
+                        success: true,
+                        message: 'API 连接测试成功',
+                        details: {
+                            '状态': result.status,
+                            '消息': result.message,
+                            '时间戳': result.timestamp
+                        }
+                    });
+                    
+                    return true;
+                } catch (error) {
+                    console.error('API 连接测试失败:', error);
+                    this.updateResults({
+                        success: false,
+                        message: 'API 连接测试失败',
+                        error: error.message,
+                        suggestion: '请检查后端服务是否正常启动，路由配置是否正确'
+                    });
+                    throw error;
+                }
+            }
+
+            // 加载懒猫微服环境信息
+            async loadLazycatEnvironment() {
+                try {
+                    console.log('加载环境信息...');
+                    const response = await fetch(`${this.apiBaseUrl}/lazycat-env`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`环境信息获取失败: HTTP ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.lazycatEnv = result.environment;
+                        this.displayEnvironmentInfo();
+                        this.validateFilePickerDomain();
+                        console.log('懒猫微服环境信息:', this.lazycatEnv);
+                        
+                        this.updateResults({
+                            success: true,
+                            message: '环境信息加载成功',
+                            environment: this.lazycatEnv
+                        });
+                    } else {
+                        throw new Error('环境信息响应格式错误');
+                    }
+                } catch (error) {
+                    console.error('加载环境信息失败:', error);
+                    this.updateResults({
+                        success: false,
+                        message: '加载环境信息失败',
+                        error: error.message,
+                        suggestion: '将使用默认环境配置'
+                    });
+                    
+                    // 使用默认环境信息作为备用
+                    this.useDefaultEnvironment();
+                }
+            }
+
+            // 使用默认环境信息作为备用
+            useDefaultEnvironment() {
+                const hostname = window.location.hostname;
+                const parts = hostname.split('.');
+                
+                if (parts.length >= 3) {
+                    const boxName = parts[1]; // 从 filepickertest.kagee.heiyu.space 提取 kagee
+                    const domain = parts.slice(2).join('.'); // 提取 heiyu.space
+                    
+                    this.lazycatEnv = {
+                        boxName: boxName,
+                        boxDomain: `${boxName}.${domain}`,
+                        appDomain: hostname,
+                        appId: 'cloud.lazycat.app.filepickertest',
+                        filePickerDomain: `https://file.${boxName}.${domain}`
+                    };
+                    
+                    this.displayEnvironmentInfo();
+                    this.updateResults({
+                        success: true,
+                        message: '使用默认环境配置',
+                        details: '从当前域名解析出环境信息',
+                        environment: this.lazycatEnv
+                    });
+                }
+            }
+
+            // 显示环境信息
+            displayEnvironmentInfo() {
+                const envInfoDiv = document.getElementById('envInfo');
+                if (this.lazycatEnv) {
+                    envInfoDiv.innerHTML = `
+                        <div class="env-details">
+                            <p><strong>设备名称:</strong> ${this.lazycatEnv.boxName}</p>
+                            <p><strong>设备域名:</strong> ${this.lazycatEnv.boxDomain}</p>
+                            <p><strong>应用域名:</strong> ${this.lazycatEnv.appDomain}</p>
+                            <p><strong>文件选择器域名:</strong> ${this.lazycatEnv.filePickerDomain}</p>
+                        </div>
+                    `;
+                } else {
+                    envInfoDiv.innerHTML = '<p class="error">环境信息加载失败</p>';
+                }
+            }
+
+            // 验证文件选择器域名配置
+            validateFilePickerDomain() {
+                if (this.lazycatEnv) {
+                    const expectedDomain = this.lazycatEnv.filePickerDomain;
+                    const currentDomain = window.location.origin;
+                    
+                    console.log('文件选择器预期域名:', expectedDomain);
+                    console.log('当前应用域名:', currentDomain);
+                    
+                    this.updateResults({
+                        success: true,
+                        message: '环境信息验证完成',
+                        details: {
+                            '设备名称': this.lazycatEnv.boxName,
+                            '设备域名': this.lazycatEnv.boxDomain,
+                            '应用域名': this.lazycatEnv.appDomain,
+                            '文件选择器域名': expectedDomain,
+                            '当前域名': currentDomain,
+                            '域名匹配': expectedDomain.includes(this.lazycatEnv.boxName) ? '✅' : '❌'
+                        }
+                    });
+                }
+            }
+
+            // 初始化文件选择器 [citation](1)
+            initFilePicker(picker, diskPath = null) {
+                try {
+                    // 等待文件选择器组件加载完成
+                    if (!picker._instance || !picker._instance.exposed) {
+                        setTimeout(() => this.initFilePicker(picker, diskPath), 100);
+                        return null;
+                    }
+                    
                     const ctx = picker._instance.exposed;
-                    if (!this.isInitialized) {
-                        ctx.init(diskPath);
+                    if (!this.isInitialized && this.lazycatEnv) {
+                        // 使用正确的磁盘路径，基于懒猫微服环境
+                        const correctDiskPath = diskPath || `/api/files/home`;
+                        
+                        console.log('初始化文件选择器，磁盘路径:', correctDiskPath);
+                        console.log('文件选择器域名:', this.lazycatEnv.filePickerDomain);
+                        
+                        ctx.init(correctDiskPath);
                         this.isInitialized = true;
                         this.updateStatus('文件选择器初始化成功');
+                        
+                        this.updateResults({
+                            success: true,
+                            message: '文件选择器初始化成功',
+                            details: {
+                                '磁盘路径': correctDiskPath,
+                                '文件选择器域名': this.lazycatEnv.filePickerDomain,
+                                '设备名称': this.lazycatEnv.boxName
+                            }
+                        });
                     }
                     return ctx;
                 } catch (error) {
                     console.error('文件选择器初始化失败:', error);
                     this.updateStatus(`初始化失败: ${error.message}`);
+                    this.updateResults({
+                        success: false,
+                        message: '文件选择器初始化失败',
+                        error: error.message,
+                        suggestion: '请检查懒猫微服环境变量配置和文件选择器插件加载'
+                    });
                     return null;
                 }
             }
 
-            // 打开文件选择器 [citation](2)
+            // 打开文件选择器 [citation](1)
             openFileSelector() {
                 const ctx = this.initFilePicker(this.fileSelector);
                 if (ctx) {
                     ctx.open();
                     this.updateStatus('文件选择器已打开');
+                    this.updateResults({
+                        success: true,
+                        message: '文件选择器已打开',
+                        details: '请在弹出的窗口中选择文件',
+                        environment: this.lazycatEnv
+                    });
                 }
             }
 
-            // 打开目录选择器 [citation](2)
+            // 打开目录选择器 [citation](1)
             openDirSelector() {
                 const ctx = this.initFilePicker(this.dirSelector);
                 if (ctx) {
                     ctx.open();
                     this.updateStatus('目录选择器已打开');
+                    this.updateResults({
+                        success: true,
+                        message: '目录选择器已打开',
+                        details: '请在弹出的窗口中选择目录'
+                    });
                 }
             }
 
-            // 打开文件保存器 [citation](2)
+            // 打开文件保存器 [citation](1)
             openFileSaver() {
                 const ctx = this.initFilePicker(this.fileSaver);
                 if (ctx) {
-                    // 按照文档要求，saveAs 类型需要发送保存数据 [citation](2)
-                    const content = `这是测试内容\n生成时间: ${new Date().toLocaleString()}\n测试数据: ${Math.random()}`;
-                    const extension = 'txt';
-                    const defaultName = `测试文件-${new Date().getTime()}`;
+                    // 按照文档要求，saveAs 类型需要发送保存数据 [citation](1)
+                    const content = JSON.stringify({
+                        title: '测试数据文件',
+                        timestamp: new Date().toISOString(),
+                        environment: this.lazycatEnv,
+                        testData: {
+                            numbers: [1, 2, 3, 4, 5],
+                            text: '这是一个测试文件',
+                            boolean: true,
+                            deviceName: this.lazycatEnv?.boxName || 'unknown'
+                        }
+                    }, null, 2);
+                    
+                    const extension = 'json';
+                    const defaultName = `测试文件-${this.lazycatEnv?.boxName || 'unknown'}-${new Date().getTime()}`;
                     
                     ctx.sendSaveAsData(content, extension, defaultName);
                     ctx.open();
                     this.updateStatus('文件保存器已打开，准备保存测试内容');
+                    this.updateResults({
+                        success: true,
+                        message: '文件保存器已打开',
+                        details: '准备保存包含环境信息的JSON测试文件',
+                        contentPreview: content.substring(0, 200) + '...'
+                    });
                 }
             }
 
-            // 测试文件类型过滤 [citation](2)
+            // 测试文件类型过滤 [citation](1)
             testFileTypes() {
                 // 创建临时文件选择器测试不同文件类型
                 const tempPicker = document.createElement('lzc-file-picker');
@@ -168,22 +402,30 @@
                 document.body.appendChild(tempPicker);
 
                 setTimeout(() => {
-                    const ctx = tempPicker._instance.exposed;
-                    ctx.init('/api/files/home');
-                    ctx.open();
-                    
-                    this.updateResults({
-                        success: true,
-                        message: '文件类型过滤测试',
-                        details: '只允许选择图片、PDF和文本文件',
-                        acceptTypes: 'image/*, application/pdf, .txt'
-                    });
-                }, 100);
+                    try {
+                        const ctx = tempPicker._instance.exposed;
+                        ctx.init('/api/files/home');
+                        ctx.open();
+                        
+                        this.updateResults({
+                            success: true,
+                            message: '文件类型过滤测试',
+                            details: '只允许选择图片、PDF和文本文件',
+                            acceptTypes: 'image/*, application/pdf, .txt',
+                            environment: this.lazycatEnv
+                        });
+                    } catch (error) {
+                        this.updateResults({
+                            success: false,
+                            message: '文件类型过滤测试失败',
+                            error: error.message
+                        });
+                    }
+                }, 500);
             }
 
             // 测试多文件选择
             testMultiSelect() {
-                // 注意：根据文档，多文件选择可能需要特定配置
                 this.updateResults({
                     success: true,
                     message: '多文件选择测试',
@@ -193,28 +435,36 @@
                 this.openFileSelector();
             }
 
-            // 测试保存内容 [citation](2)
+            // 测试保存内容 [citation](1)
             testSaveContent() {
                 const testContent = JSON.stringify({
-                    title: '测试数据',
+                    title: '高级测试数据',
                     timestamp: new Date().toISOString(),
-                    data: {
-                        numbers: [1, 2, 3, 4, 5],
-                        text: '这是一个测试文件',
-                        boolean: true
+                    environment: this.lazycatEnv,
+                    testData: {
+                        numbers: Array.from({length: 10}, (_, i) => i + 1),
+                        text: '这是一个包含环境信息的高级测试文件',
+                        boolean: true,
+                        deviceName: this.lazycatEnv?.boxName || 'unknown',
+                        features: [
+                            '文件选择功能',
+                            '目录选择功能',
+                            '文件保存功能',
+                            '类型过滤功能'
+                        ]
                     }
                 }, null, 2);
 
                 const ctx = this.initFilePicker(this.fileSaver);
                 if (ctx) {
-                    ctx.sendSaveAsData(testContent, 'json', '测试数据文件');
+                    ctx.sendSaveAsData(testContent, 'json', '高级测试数据文件');
                     ctx.open();
                     
                     this.updateResults({
                         success: true,
                         message: '保存内容测试',
-                        details: '准备保存JSON格式的测试数据',
-                        contentPreview: testContent.substring(0, 100) + '...'
+                        details: '准备保存包含完整环境信息的JSON格式测试数据',
+                        contentPreview: testContent.substring(0, 300) + '...'
                     });
                 }
             }
@@ -230,9 +480,60 @@
                         '支持文件上传下载',
                         '目录导航和面包屑',
                         '文件类型识别和预览'
-                    ]
+                    ],
+                    environment: this.lazycatEnv
                 });
                 this.openFileSelector();
+            }
+
+            // 调试环境信息
+            async debugEnvironment() {
+                try {
+                    // 获取详细调试信息
+                    const response = await fetch(`${this.apiBaseUrl}/debug`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`调试接口访问失败: HTTP ${response.status}`);
+                    }
+                    
+                    const debugInfo = await response.json();
+                    
+                    this.updateResults({
+                        success: true,
+                        message: '环境调试信息',
+                        details: {
+                            '当前URL': window.location.href,
+                            '当前域名': window.location.origin,
+                            '后端环境变量': debugInfo.lazycatVars || '未获取到',
+                            '服务器时间': debugInfo.timestamp || '未知'
+                        },
+                        rawData: debugInfo
+                    });
+                    
+                    // 检查域名匹配
+                    if (debugInfo.lazycatVars) {
+                        const expectedFilePickerDomain = `https://file.${debugInfo.lazycatVars.LAZYCAT_BOX_NAME}.${debugInfo.lazycatVars.LAZYCAT_BOX_DOMAIN}`;
+                        const currentDomain = window.location.origin;
+                        
+                        this.updateResults({
+                            success: true,
+                            message: '域名匹配检查',
+                            details: {
+                                '预期文件选择器域名': expectedFilePickerDomain,
+                                '当前应用域名': currentDomain,
+                                '域名匹配': expectedFilePickerDomain.includes(debugInfo.lazycatVars.LAZYCAT_BOX_NAME) ? '✅' : '❌'
+                            }
+                        });
+                    }
+                    
+                } catch (error) {
+                    this.updateResults({
+                        success: false,
+                        message: '调试信息获取失败',
+                        error: error.message,
+                        suggestion: '请检查后端调试接口是否可用'
+                    });
+                }
             }
 
             // 文件上传功能
@@ -258,7 +559,7 @@
                         const formData = new FormData();
                         formData.append('file', file);
 
-                        const response = await fetch('/api/upload', {
+                        const response = await fetch(`${this.apiBaseUrl}/upload`, {
                             method: 'POST',
                             body: formData
                         });
@@ -269,19 +570,25 @@
                             this.updateResults({
                                 success: true,
                                 message: `文件上传成功: ${file.name}`,
-                                fileInfo: result.file
+                                details: {
+                                    '原始文件名': result.file.originalName,
+                                    '服务器文件名': result.file.filename,
+                                    '文件大小': `${(result.file.size / 1024).toFixed(2)} KB`,
+                                    '上传时间': new Date().toLocaleString()
+                                }
                             });
                         } else {
-                            throw new Error(result.error);
+                            throw new Error(result.error || '上传失败');
                         }
 
                         // 更新进度
                         const progress = ((i + 1) / files.length) * 100;
                         progressFill.style.width = `${progress}%`;
                     }
-
-                    this.updateStatus('所有文件上传完成');
-                    this.refreshFileList();
+                    
+                    // 上传完成后刷新文件列表
+                    await this.refreshFileList();
+                    
                 } catch (error) {
                     this.updateResults({
                         success: false,
@@ -290,6 +597,7 @@
                     });
                 } finally {
                     progressBar.style.display = 'none';
+                    progressFill.style.width = '0%';
                     fileInput.value = '';
                 }
             }
@@ -297,19 +605,19 @@
             // 刷新文件列表
             async refreshFileList() {
                 try {
-                    const response = await fetch('/api/files');
+                    const response = await fetch(`${this.apiBaseUrl}/files`);
                     const result = await response.json();
                     
                     if (result.success) {
                         this.displayFileList(result.files);
-                        this.updateStatus('文件列表已刷新');
+                        this.updateStatus(`文件列表已刷新，共 ${result.files.length} 个文件`);
                     } else {
-                        throw new Error(result.error);
+                        throw new Error('获取文件列表失败');
                     }
                 } catch (error) {
                     this.updateResults({
                         success: false,
-                        message: '获取文件列表失败',
+                        message: '刷新文件列表失败',
                         error: error.message
                     });
                 }
@@ -317,33 +625,37 @@
 
             // 显示文件列表
             displayFileList(files) {
-                const fileListContainer = document.getElementById('fileList');
+                const fileListDiv = document.getElementById('fileList');
                 
                 if (files.length === 0) {
-                    fileListContainer.innerHTML = '<p class="placeholder">暂无文件</p>';
+                    fileListDiv.innerHTML = '<p class="placeholder">暂无文件</p>';
                     return;
                 }
 
-                const fileListHTML = files.map(file => `
-                    <div class="file-item">
-                        <div class="file-info">
-                            <span class="file-name">${file.name}</span>
-                            <span class="file-size">${this.formatFileSize(file.size)}</span>
-                            <span class="file-date">${new Date(file.created).toLocaleString()}</span>
+                let html = '<div class="file-items">';
+                files.forEach(file => {
+                    html += `
+                        <div class="file-item">
+                            <div class="file-info">
+                                <strong>${file.name}</strong>
+                                <span class="file-size">${(file.size / 1024).toFixed(2)} KB</span>
+                                <span class="file-date">${new Date(file.created).toLocaleString()}</span>
+                            </div>
+                            <div class="file-actions">
+                                <button onclick="tester.downloadFile('${file.name}')" class="btn btn-sm">下载</button>
+                                <button onclick="tester.deleteFile('${file.name}')" class="btn btn-sm btn-danger">删除</button>
+                            </div>
                         </div>
-                        <div class="file-actions">
-                            <button onclick="tester.downloadFile('${file.name}')" class="btn btn-small">下载</button>
-                            <button onclick="tester.deleteFile('${file.name}')" class="btn btn-small btn-danger">删除</button>
-                        </div>
-                    </div>
-                `).join('');
-
-                fileListContainer.innerHTML = fileListHTML;
+                    `;
+                });
+                html += '</div>';
+                
+                fileListDiv.innerHTML = html;
             }
 
             // 下载文件
             downloadFile(filename) {
-                const downloadUrl = `/api/download/${encodeURIComponent(filename)}`;
+                const downloadUrl = `${this.apiBaseUrl}/download/${encodeURIComponent(filename)}`;
                 const link = document.createElement('a');
                 link.href = downloadUrl;
                 link.download = filename;
@@ -351,7 +663,10 @@
                 link.click();
                 document.body.removeChild(link);
                 
-                this.updateStatus(`开始下载文件: ${filename}`);
+                this.updateResults({
+                    success: true,
+                    message: `开始下载文件: ${filename}`
+                });
             }
 
             // 删除文件
@@ -361,10 +676,10 @@
                 }
 
                 try {
-                    const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+                    const response = await fetch(`${this.apiBaseUrl}/files/${encodeURIComponent(filename)}`, {
                         method: 'DELETE'
                     });
-                    
+
                     const result = await response.json();
                     
                     if (result.success) {
@@ -372,9 +687,9 @@
                             success: true,
                             message: `文件删除成功: ${filename}`
                         });
-                        this.refreshFileList();
+                        await this.refreshFileList();
                     } else {
-                        throw new Error(result.error);
+                        throw new Error(result.error || '删除失败');
                     }
                 } catch (error) {
                     this.updateResults({
@@ -385,102 +700,75 @@
                 }
             }
 
-            // 格式化文件大小
-            formatFileSize(bytes) {
-                if (bytes === 0) return '0 Bytes';
-                const k = 1024;
-                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-            }
-
             // 初始化事件监听器
             initEventListeners() {
-                // 文件选择器事件 [citation](2)
-                this.fileSelector.addEventListener('submit', (e) => {
-                    const selected = this.dataTransfer(e);
-                    this.updateResults({
-                        success: true,
-                        message: '文件选择完成',
-                        selectedFile: selected
-                    });
-                });
-
-                this.fileSelector.addEventListener('visible', () => {
-                    const shouldClose = confirm('确定要关闭文件选择器吗？');
-                    if (shouldClose) {
-                        this.fileSelector._instance.exposed.close();
-                    }
-                });
-
-                // 目录选择器事件 [citation](2)
-                this.dirSelector.addEventListener('submit', (e) => {
-                    const selected = this.dataTransfer(e);
-                    this.updateResults({
-                        success: true,
-                        message: '目录选择完成',
-                        selectedDir: selected
-                    });
-                });
-
-                // 文件保存器事件 [citation](2)
-                this.fileSaver.addEventListener('done', (e) => {
-                    const result = this.dataTransfer(e);
-                    const { status, stat } = result;
-                    
-                    status.then((flag) => {
-                        this.updateResults({
-                            success: flag,
-                            message: `文件保存${flag ? '成功' : '失败'}`,
-                            saveResult: result
-                        });
-                    });
-                });
-
-                // 按钮事件
+                // 控制面板按钮
                 document.getElementById('openFileSelector').addEventListener('click', () => this.openFileSelector());
                 document.getElementById('openDirSelector').addEventListener('click', () => this.openDirSelector());
                 document.getElementById('openFileSaver').addEventListener('click', () => this.openFileSaver());
-                
+                document.getElementById('debugEnv').addEventListener('click', () => this.debugEnvironment());
+                document.getElementById('testConnection').addEventListener('click', () => this.testApiConnection());
+
+                // 测试功能按钮
                 document.getElementById('testFileTypes').addEventListener('click', () => this.testFileTypes());
                 document.getElementById('testMultiSelect').addEventListener('click', () => this.testMultiSelect());
                 document.getElementById('testSaveContent').addEventListener('click', () => this.testSaveContent());
                 document.getElementById('testNetworkDisk').addEventListener('click', () => this.testNetworkDisk());
-                
+
+                // 文件操作按钮
                 document.getElementById('uploadBtn').addEventListener('click', () => this.uploadFile());
                 document.getElementById('refreshFiles').addEventListener('click', () => this.refreshFileList());
-            }
 
-            // 数据传输辅助函数 [citation](2)
-            dataTransfer(raw) {
-                if (!raw) return null;
-                const output = raw.detail[0];
-                return output;
+                // 文件选择器事件监听 [citation](1)
+                this.fileSelector.addEventListener('submit', (event) => {
+                    const selectedFiles = event.detail[0];
+                    this.updateResults({
+                        success: true,
+                        message: '文件选择完成',
+                        selectedFiles: selectedFiles
+                    });
+                });
+
+                this.dirSelector.addEventListener('submit', (event) => {
+                    const selectedDir = event.detail[0];
+                    this.updateResults({
+                        success: true,
+                        message: '目录选择完成',
+                        selectedDirectory: selectedDir
+                    });
+                });
+
+                this.fileSaver.addEventListener('done', (event) => {
+                    const saveResult = event.detail[0];
+                    this.updateResults({
+                        success: true,
+                        message: '文件保存完成',
+                        saveResult: saveResult
+                    });
+                });
             }
 
             // 更新结果显示
             updateResults(result) {
                 const resultsContainer = document.getElementById('results');
                 const resultItem = document.createElement('div');
-                resultItem.className = `result-item ${result.success ? '' : 'error'}`;
+                resultItem.className = `result-item ${result.success ? 'success' : 'error'}`;
                 
                 let content = `<h3>${result.message}</h3>`;
-                if (result.details) content += `<p><strong>详情:</strong> ${result.details}</p>`;
-                if (result.note) content += `<p><strong>注意:</strong> ${result.note}</p>`;
-                if (result.acceptTypes) content += `<p><strong>接受类型:</strong> ${result.acceptTypes}</p>`;
-                if (result.features) {
-                    content += '<p><strong>功能特性:</strong></p><ul>';
-                    result.features.forEach(feature => {
-                        content += `<li>${feature}</li>`;
+                if (result.query) content += `<p><strong>查询:</strong> ${result.query}</p>`;
+                if (result.count !== undefined) content += `<p><strong>结果数量:</strong> ${result.count}</p>`;
+                if (result.expected) content += `<p><strong>预期:</strong> ${result.expected}</p>`;
+                if (result.details) {
+                    content += '<p><strong>详细信息:</strong></p><ul>';
+                    Object.entries(result.details).forEach(([key, value]) => {
+                        content += `<li>${key}: ${value}</li>`;
                     });
                     content += '</ul>';
                 }
                 if (result.error) content += `<p><strong>错误:</strong> ${result.error}</p>`;
-                if (result.selectedFile || result.selectedDir || result.saveResult || result.fileInfo) {
-                    const data = result.selectedFile || result.selectedDir || result.saveResult || result.fileInfo;
-                    content += `<div class="data-preview">${JSON.stringify(data, null, 2)}</div>`;
-                }
-                if (result.contentPreview) content += `<div class="content-preview">${result.contentPreview}</div>`;
+                if (result.suggestion) content += `<p><strong>建议:</strong> ${result.suggestion}</p>`;
+                if (result.environment) content += `<div class="env-preview">环境信息: ${JSON.stringify(result.environment, null, 2)}</div>`;
+                if (result.rawData) content += `<div class="data-preview">原始数据: ${JSON.stringify(result.rawData, null, 2)}</div>`;
                 
                 resultItem.innerHTML = content;
                 resultsContainer.appendChild(resultItem);
@@ -495,13 +783,13 @@
             }
         }
 
+        // 全局变量，供文件操作使用
+        let tester;
+
         // 等待DOM加载完成后初始化
         document.addEventListener('DOMContentLoaded', () => {
-            // 等待文件选择器插件加载完成
-            setTimeout(() => {
-                window.tester = new FilePickerTester();
-                console.log('懒猫文件选择器测试应用已启动');
-            }, 1000);
+            tester = new FilePickerTester();
+            console.log('懒猫文件选择器测试应用已启动');
         });
     </script>
 </body>
