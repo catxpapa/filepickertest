@@ -1,0 +1,21 @@
+name: filepickertest
+package: cloud.lazycat.app.filepickertest
+version: 0.0.1
+description:
+license: https://choosealicense.com/licenses/mit/
+homepage:
+author:
+application:
+  subdomain: filepickertest
+  workdir: /lzcapp/pkg/content/
+  routes:
+    - /=file:///lzcapp/pkg/content/web/
+  upstreams:
+    - location: /api/
+      backend: http://127.0.0.1:3000/
+      backend_launch_command: |
+        cd /lzcapp/pkg/content/backend
+        ls
+        apk update
+        apk add nodejs npm
+        npm run start
