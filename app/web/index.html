@@ -12,7 +12,7 @@
     <div class="container">
         <header>
             <h1>📁 懒猫文件选择器测试应用</h1>
-            <p>懒猫官方文件选择器插件功能测试 - 按需加载，减少系统压力</p>
+            <p>懒猫官方文件选择器插件功能测试 - 完整版本</p>
             <div id="envInfo" class="env-info">
                 <p>正在加载环境信息...</p>
             </div>
@@ -65,6 +65,9 @@
                     <p><strong>当前存储目录：</strong> <span id="uploadTargetPath">/lzcapp/var/uploads</span></p>
                     <p><strong>支持格式：</strong> 图片(jpg,png,gif,webp)、PDF、文档(txt,doc,docx)、压缩包(zip)</p>
                     <p><strong>大小限制：</strong> 单文件最大 10MB，最多同时上传 5 个文件</p>
+                    <div class="security-notice">
+                        <p><strong>⚠️ 重要提示：</strong>home目录（用户网盘）出于安全考虑不支持直接上传，请使用"文件保存器"功能</p>
+                    </div>
                 </div>
                 
                 <!-- 隐藏的文件输入框 -->
@@ -77,6 +80,7 @@
                         <button id="selectFilesBtn" class="btn btn-primary">📁 选择本地文件</button>
                         <button id="uploadFilesBtn" class="btn btn-success" disabled>📤 上传到存储目录</button>
                         <button id="clearSelectionBtn" class="btn btn-secondary">🗑️ 清空选择</button>
+                        <button id="saveToHomeBtn" class="btn btn-info" style="display: none;">💾 保存到用户网盘</button>
                     </div>
                 </div>
                 
@@ -120,7 +124,7 @@
                     <div class="storage-details">
                         <span class="storage-label">用户文档目录</span>
                         <code>/lzcapp/run/mnt/home</code>
-                        <small>用户网盘目录，与懒猫网盘同步</small>
+                        <small>⚠️ 用户网盘目录，仅支持通过文件保存器访问</small>
                     </div>
                 </label>
             </div>

@@ -26,17 +26,22 @@ console.log('- 文件选择器域名:', FILE_PICKER_DOMAIN);
 // 中间件配置
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // 请求日志中间件
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log('请求头信息:', {
+        'x-hc-user-id': req.headers['x-hc-user-id'],
+        'x-hc-user-role': req.headers['x-hc-user-role']
+    });
     next();
 });
 
-// 关键修正：在这里创建 API 路由器
+// 创建 API 路由器
 const apiRouter = express.Router();
 
-// 存储路径映射
+// 存储路径映射函数
 const getStoragePath = (storageType, userId = null) => {
     const storageMap = {
         'var': '/lzcapp/var',
@@ -55,6 +60,7 @@ const createMulterConfig = (storageType, userId = null) => {
         destination: async (req, file, cb) => {
             try {
                 await fs.ensureDir(uploadPath);
+                console.log('创建上传目录:', uploadPath);
                 cb(null, uploadPath);
             } catch (error) {
                 console.error('创建上传目录失败:', error);
@@ -62,7 +68,6 @@ const createMulterConfig = (storageType, userId = null) => {
             }
         },
         filename: (req, file, cb) => {
-            // 生成唯一文件名：时间戳-原始名称
             const timestamp = Date.now();
             const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
             const uniqueName = `${timestamp}-${originalName}`;
@@ -71,7 +76,6 @@ const createMulterConfig = (storageType, userId = null) => {
     });
 
     const fileFilter = (req, file, cb) => {
-        // 允许的文件类型
         const allowedTypes = [
             'image/jpeg', 'image/png', 'image/gif', 'image/webp',
             'application/pdf',
@@ -98,7 +102,7 @@ const createMulterConfig = (storageType, userId = null) => {
     });
 };
 
-// 现在可以安全地定义 API 路由
+// API 路由定义
 
 // 健康检查接口
 apiRouter.get('/health', (req, res) => {
@@ -129,9 +133,8 @@ apiRouter.get('/lazycat-env', (req, res) => {
     });
 });
 
-// 获取用户信息的API接口 [citation](4)
+// 获取用户信息的API接口 [citation](3)
 apiRouter.get('/user-info', (req, res) => {
-    // 从请求头中获取用户ID
     const userId = req.headers['x-hc-user-id'] || 'default';
     const userRole = req.headers['x-hc-user-role'] || 'USER';
     
@@ -142,15 +145,37 @@ apiRouter.get('/user-info', (req, res) => {
         user: {
             id: userId,
             role: userRole,
-            name: userId // 可以根据需要扩展
+            name: userId
         }
     });
 });
 
-// 文件上传接口
+// 文件上传接口 - 处理home目录限制
 apiRouter.post('/upload', (req, res) => {
     const storageType = req.body.storageType || req.query.storageType || 'var';
-    const userId = req.headers['x-hc-user-id']; // 获取当前用户ID
+    const userId = req.headers['x-hc-user-id'];
+    
+    console.log('=== 文件上传请求调试 ===');
+    console.log('请求存储类型 (body):', req.body.storageType);
+    console.log('请求存储类型 (query):', req.query.storageType);
+    console.log('最终使用存储类型:', storageType);
+    console.log('用户ID:', userId);
+    console.log('目标存储路径:', getStoragePath(storageType, userId));
+    
+    // 检查home目录的安全限制
+    if (storageType === 'home') {
+        return res.status(403).json({
+            success: false,
+            error: 'home目录安全限制',
+            message: 'home目录是用户网盘同步目录，出于安全考虑不支持直接上传',
+            suggestion: '请使用懒猫文件保存器功能来保存文件到用户网盘',
+            details: {
+                '技术原因': '懒猫微服的安全架构限制应用直接写入用户网盘目录',
+                '正确方式': '使用 type="saveAs" 的文件选择器组件',
+                '参考文档': 'https://developer.lazycat.cloud/advanced-file.html'
+            }
+        });
+    }
     
     const upload = createMulterConfig(storageType, userId);
     
@@ -164,15 +189,27 @@ apiRouter.post('/upload', (req, res) => {
         }
 
         try {
-            const uploadedFiles = req.files.map(file => ({
-                originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
-                filename: file.filename,
-                size: file.size,
-                mimetype: file.mimetype,
-                storagePath: file.path,
-                storageType: storageType,
-                uploadTime: new Date().toISOString()
-            }));
+            const uploadPath = path.join(getStoragePath(storageType, userId), 'uploads');
+            console.log('实际上传路径:', uploadPath);
+            console.log('上传文件数量:', req.files.length);
+            
+            const uploadedFiles = req.files.map(file => {
+                console.log('文件详情:', {
+                    原始名称: file.originalname,
+                    存储路径: file.path,
+                    文件大小: file.size
+                });
+                
+                return {
+                    originalName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+                    filename: file.filename,
+                    size: file.size,
+                    mimetype: file.mimetype,
+                    storagePath: file.path,
+                    storageType: storageType,
+                    uploadTime: new Date().toISOString()
+                };
+            });
 
             console.log(`成功上传 ${uploadedFiles.length} 个文件到 ${storageType} 存储`);
 
@@ -183,7 +220,7 @@ apiRouter.post('/upload', (req, res) => {
                 storageInfo: {
                     type: storageType,
                     path: getStoragePath(storageType, userId),
-                    uploadPath: path.join(getStoragePath(storageType, userId), 'uploads')
+                    uploadPath: uploadPath
                 }
             });
         } catch (error) {
@@ -202,6 +239,8 @@ apiRouter.get('/files', async (req, res) => {
         const storageType = req.query.storageType || 'var';
         const userId = req.headers['x-hc-user-id'];
         const uploadDir = path.join(getStoragePath(storageType, userId), 'uploads');
+        
+        console.log('获取文件列表:', { storageType, userId, uploadDir });
         
         await fs.ensureDir(uploadDir);
         
@@ -249,7 +288,7 @@ apiRouter.get('/download/:filename', async (req, res) => {
         
         if (await fs.pathExists(filePath)) {
             const stats = await fs.stat(filePath);
-            const originalName = filename.replace(/^\d+-/, ''); // 移除时间戳前缀
+            const originalName = filename.replace(/^\d+-/, '');
             
             res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
             res.setHeader('Content-Length', stats.size);
@@ -346,6 +385,11 @@ apiRouter.get('/info', (req, res) => {
         environment: {
             boxName: LAZYCAT_BOX_NAME,
             correctFilePickerDomain: FILE_PICKER_DOMAIN
+        },
+        storageInfo: {
+            supportedTypes: ['var', 'cache', 'home', 'temp'],
+            homeDirectoryNote: 'home目录需要使用文件保存器，不支持直接上传',
+            securityPolicy: '懒猫微服安全架构限制应用直接写入用户网盘目录'
         }
     });
 });
@@ -359,6 +403,25 @@ app.use(express.static(path.join(__dirname, '../web')));
 // 根路径重定向
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../web/index.html'));
+});
+
+// 全局错误处理中间件
+app.use((err, req, res, next) => {
+    console.error('服务器错误:', err);
+    res.status(500).json({
+        success: false,
+        error: '服务器内部错误',
+        message: err.message
+    });
+});
+
+// 404 处理
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: '接口不存在',
+        message: `找不到请求的路径: ${req.url}`
+    });
 });
 
 // 启动服务器

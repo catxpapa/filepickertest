@@ -1,6 +1,6 @@
 /**
- * 懒猫文件选择器测试应用 - 修正版本
- * 解决文件选择框不弹出的问题
+ * 懒猫文件选择器测试应用 - 完整修正版本
+ * 解决所有语法错误和功能缺陷
  */
 class OptimizedFilePickerTester {
     constructor() {
@@ -73,7 +73,7 @@ class OptimizedFilePickerTester {
     }
 
     /**
-     * 加载懒猫微服环境信息 [citation](5)
+     * 加载懒猫微服环境信息 [citation](3)
      */
     async loadLazycatEnvironment() {
         try {
@@ -107,7 +107,7 @@ class OptimizedFilePickerTester {
     }
 
     /**
-     * 加载用户信息 [citation](5)
+     * 加载用户信息 [citation](3)
      */
     async loadUserInfo() {
         try {
@@ -415,13 +415,185 @@ class OptimizedFilePickerTester {
     }
 
     /**
-     * 处理文件选择 - 修正版本
+     * 创建文件选择器 [citation](5)
+     */
+    createFilePicker(type) {
+        if (!this.lazycatEnv || !this.lazycatEnv.boxName) {
+            this.updateResults({
+                success: false,
+                message: '环境信息未加载',
+                error: '请等待环境信息加载完成'
+            });
+            return;
+        }
+
+        console.log('创建文件选择器:', {
+            type: type,
+            boxName: this.lazycatEnv.boxName,
+            storageType: this.currentStorageType
+        });
+
+        // 清理之前的选择器
+        this.destroyCurrentPicker();
+        
+        const pickerWrapper = document.getElementById('pickerWrapper');
+        const pickerContainer = document.getElementById('pickerContainer');
+        const pickerTitle = document.getElementById('pickerTitle');
+        
+        if (!pickerWrapper || !pickerContainer || !pickerTitle) {
+            console.error('找不到文件选择器容器元素');
+            return;
+        }
+
+        // 创建新的文件选择器元素 [citation](1)
+        const picker = document.createElement('lzc-file-picker');
+        picker.id = `picker-${type}-${Date.now()}`;
+        picker.setAttribute('type', type);
+        picker.setAttribute('title', this.pickerTypes[type].title);
+        picker.setAttribute('confirm-button-title', '确认选择');
+        picker.setAttribute('breadcrumb-root-title', '根目录');
+        
+        // 关键修正：确保 box-id 正确设置 [citation](1)
+        picker.setAttribute('box-id', this.lazycatEnv.boxName);
+        console.log(`设置 ${type} 选择器的 box-id:`, this.lazycatEnv.boxName);
+        
+        // 特殊配置
+        if (type === 'saveAs') {
+            picker.setAttribute('write-file-content', '');
+        }
+        
+        // 添加事件监听器
+        picker.addEventListener('submit', (e) => {
+            const result = e.detail[0];
+            this.updateResults({
+                success: true,
+                message: `${this.pickerTypes[type].title}操作成功`,
+                details: result
+            });
+            console.log(`${type} 选择结果:`, result);
+        });
+        
+        picker.addEventListener('close', () => {
+            this.closePicker();
+        });
+        
+        picker.addEventListener('done', (e) => {
+            const result = e.detail[0];
+            this.updateResults({
+                success: true,
+                message: `${this.pickerTypes[type].title}保存完成`,
+                details: result
+            });
+            console.log(`${type} 保存结果:`, result);
+        });
+        
+        // 添加到容器
+        pickerWrapper.innerHTML = ''; // 确保容器为空
+        pickerWrapper.appendChild(picker);
+        this.currentPicker = picker;
+        
+        // 显示容器
+        pickerTitle.textContent = this.pickerTypes[type].title;
+        pickerContainer.style.display = 'block';
+        
+        // 延迟初始化，确保元素完全加载
+        setTimeout(() => {
+            this.initializePicker(picker, type);
+        }, 200);
+    }
+
+    /**
+     * 初始化文件选择器 [citation](5)
+     */
+    initializePicker(picker, type) {
+        try {
+            if (!picker._instance || !picker._instance.exposed) {
+                setTimeout(() => this.initializePicker(picker, type), 100);
+                return;
+            }
+            
+            const ctx = picker._instance.exposed;
+            const diskPath = this.getCurrentStoragePath();
+            
+            console.log(`初始化 ${type} 选择器，磁盘路径:`, diskPath);
+            console.log('box-id:', this.lazycatEnv.boxName);
+            
+            ctx.init(diskPath);
+            
+            // 如果是保存器，设置测试内容 [citation](5)
+            if (type === 'saveAs') {
+                const content = JSON.stringify({
+                    title: '测试数据文件',
+                    timestamp: new Date().toISOString(),
+                    environment: this.lazycatEnv,
+                    storageType: this.currentStorageType,
+                    storagePath: diskPath,
+                    testData: {
+                        message: '这是一个测试文件',
+                        deviceName: this.lazycatEnv?.boxName || 'unknown'
+                    }
+                }, null, 2);
+                
+                ctx.sendSaveAsData(content, 'json', `测试文件-${this.lazycatEnv?.boxName || 'unknown'}-${Date.now()}`);
+            }
+            
+            ctx.open();
+            
+            this.updateResults({
+                success: true,
+                message: `${this.pickerTypes[type].title}初始化成功`,
+                details: {
+                    '类型': type,
+                    '磁盘路径': diskPath,
+                    '存储类型': this.currentStorageType,
+                    'box-id': this.lazycatEnv.boxName,
+                    '文件选择器域名': `https://file.${this.lazycatEnv.boxName}.heiyu.space`
+                }
+            });
+            
+        } catch (error) {
+            console.error(`${type} 选择器初始化失败:`, error);
+            this.updateResults({
+                success: false,
+                message: `${type} 选择器初始化失败`,
+                error: error.message
+            });
+        }
+    }
+
+    /**
+     * 销毁当前选择器
+     */
+    destroyCurrentPicker() {
+        if (this.currentPicker) {
+            const pickerWrapper = document.getElementById('pickerWrapper');
+            if (pickerWrapper) {
+                pickerWrapper.innerHTML = '';
+            }
+            this.currentPicker = null;
+            console.log('已销毁当前文件选择器');
+        }
+    }
+
+    /**
+     * 关闭选择器
+     */
+    closePicker() {
+        const pickerContainer = document.getElementById('pickerContainer');
+        if (pickerContainer) {
+            pickerContainer.style.display = 'none';
+        }
+        this.destroyCurrentPicker();
+        this.updateStatus('文件选择器已关闭');
+    }
+
+    /**
+     * 处理文件选择
      */
     handleFileSelection(files) {
         console.log('处理文件选择:', files);
         
-        if (!files || files.length === 0) {
-            console.log('没有选择文件，清空选择');
+        if (files.length === 0) {
             this.clearFileSelection();
             return;
         }
@@ -439,12 +611,6 @@ class OptimizedFilePickerTester {
             }
         });
 
-        console.log('文件验证结果:', {
-            总文件数: fileArray.length,
-            有效文件数: validFiles.length,
-            无效文件数: invalidFiles.length
-        });
-
         if (invalidFiles.length > 0) {
             this.updateResults({
                 success: false,
@@ -460,11 +626,9 @@ class OptimizedFilePickerTester {
             this.selectedFiles = validFiles;
             this.displaySelectedFiles();
             
-            // 启用上传按钮
             const uploadBtn = document.getElementById('uploadFilesBtn');
             if (uploadBtn) {
                 uploadBtn.disabled = false;
-                console.log('已启用上传按钮');
             }
             
             this.updateResults({
@@ -472,12 +636,6 @@ class OptimizedFilePickerTester {
                 message: `已选择 ${validFiles.length} 个有效文件`,
                 details: validFiles.map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(2)}MB)`)
             });
-        } else {
-            // 如果没有有效文件，禁用上传按钮
-            const uploadBtn = document.getElementById('uploadFilesBtn');
-            if (uploadBtn) {
-                uploadBtn.disabled = true;
-            }
         }
     }
 
@@ -495,17 +653,7 @@ class OptimizedFilePickerTester {
             'application/zip'
         ];
 
-        const isValidSize = file.size <= maxSize;
-        const isValidType = allowedTypes.includes(file.type);
-        
-        console.log(`验证文件 ${file.name}:`, {
-            大小: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
-            类型: file.type,
-            大小有效: isValidSize,
-            类型有效: isValidType
-        });
-
-        return isValidSize && isValidType;
+        return file.size <= maxSize && allowedTypes.includes(file.type);
     }
 
     /**
@@ -521,48 +669,39 @@ class OptimizedFilePickerTester {
         }
 
         const fileItems = this.selectedFiles.map((file, index) => `
-            <div class="file-preview-item" data-index="${index}">
+            <div class="file-preview-item">
                 <div class="file-info">
                     <span class="file-name">${file.name}</span>
                     <span class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
                     <span class="file-type">${file.type}</span>
                 </div>
-                <button class="btn btn-small btn-danger" onclick="window.app.removeSelectedFile(${index})">移除</button>
+                <button class="btn btn-small btn-danger" onclick="app.removeSelectedFile(${index})">移除</button>
             </div>
         `).join('');
 
         previewList.innerHTML = fileItems;
         previewContainer.style.display = 'block';
-        
-        console.log('已显示选择的文件列表');
     }
 
     /**
-     * 移除选择的文件
+     * 移除选中的文件
      */
     removeSelectedFile(index) {
         if (index >= 0 && index < this.selectedFiles.length) {
-            const removedFile = this.selectedFiles.splice(index, 1)[0];
-            console.log('移除文件:', removedFile.name);
-            
+            this.selectedFiles.splice(index, 1);
             this.displaySelectedFiles();
             
-            // 如果没有文件了，禁用上传按钮
             if (this.selectedFiles.length === 0) {
                 const uploadBtn = document.getElementById('uploadFilesBtn');
                 if (uploadBtn) {
                     uploadBtn.disabled = true;
                 }
-                this.updateResults({
-                    success: true,
-                    message: '已清空文件选择'
-                });
-            } else {
-                this.updateResults({
-                    success: true,
-                    message: `已移除文件，剩余 ${this.selectedFiles.length} 个文件`
-                });
             }
+            
+            this.updateResults({
+                success: true,
+                message: `已移除文件，剩余 ${this.selectedFiles.length} 个文件`
+            });
         }
     }
 
@@ -571,30 +710,30 @@ class OptimizedFilePickerTester {
      */
     clearFileSelection() {
         this.selectedFiles = [];
-        
-        // 清空文件输入框
-        const localFileInput = document.getElementById('localFileInput');
-        if (localFileInput) {
-            localFileInput.value = '';
-        }
-        
-        // 隐藏预览容器
         const previewContainer = document.getElementById('selectedFilesPreview');
+        const localFileInput = document.getElementById('localFileInput');
+        const uploadBtn = document.getElementById('uploadFilesBtn');
+        
         if (previewContainer) {
             previewContainer.style.display = 'none';
         }
         
-        // 禁用上传按钮
-        const uploadBtn = document.getElementById('uploadFilesBtn');
+        if (localFileInput) {
+            localFileInput.value = '';
+        }
+        
         if (uploadBtn) {
             uploadBtn.disabled = true;
         }
         
-        console.log('已清空文件选择');
+        this.updateResults({
+            success: true,
+            message: '已清空文件选择'
+        });
     }
 
     /**
-     * 上传选择的文件
+     * 上传选中的文件
      */
     async uploadSelectedFiles() {
         if (!this.selectedFiles || this.selectedFiles.length === 0) {
@@ -606,28 +745,171 @@ class OptimizedFilePickerTester {
             return;
         }
 
-        // 获取当前存储类型
-        const selectedRadio = document.querySelector('input[name="storageType"]:checked');
-        const actualStorageType = selectedRadio ? selectedRadio.value : this.currentStorageType;
+        // 关键判断：home 目录必须使用文件保存器
+        if (this.currentStorageType === 'home') {
+            this.updateResults({
+                success: false,
+                message: '安全限制：home 目录需要使用文件保存器',
+                details: {
+                    '说明': 'home 目录是用户网盘同步目录，出于安全考虑不支持直接上传',
+                    '正确方式': '请点击"文件保存器"按钮，然后选择要保存的文件',
+                    '技术原因': '懒猫微服的安全架构限制应用直接写入用户网盘目录'
+                }
+            });
+            
+            // 自动引导用户使用文件保存器
+            this.showFileSaverGuide();
+            return;
+        }
+
+        // 对于 var、cache、temp 目录，使用直接上传
+        await this.performDirectUpload();
+    }
+
+    /**
+     * 引导用户使用文件保存器
+     */
+    showFileSaverGuide() {
+        const result = confirm(
+            '要保存文件到用户网盘，需要使用文件保存器。\n' +
+            '点击"确定"自动打开文件保存器，或点击"取消"手动操作。'
+        );
         
-        console.log('=== 文件上传调试信息 ===');
-        console.log('上传文件数量:', this.selectedFiles.length);
+        if (result) {
+            // 自动为每个选中的文件创建保存器
+            this.saveFilesToHomeUsingPicker();
+        }
+    }
+
+    /**
+     * 使用文件保存器保存文件到 home 目录 [citation](5)
+     */
+    async saveFilesToHomeUsingPicker() {
+        for (let i = 0; i < this.selectedFiles.length; i++) {
+            const file = this.selectedFiles[i];
+            console.log(`正在保存第 ${i + 1}/${this.selectedFiles.length} 个文件:`, file.name);
+            
+            try {
+                await this.saveFileUsingPicker(file);
+                await new Promise(resolve => setTimeout(resolve, 1000)); // 间隔1秒
+            } catch (error) {
+                console.error('保存文件失败:', error);
+                this.updateResults({
+                    success: false,
+                    message: `保存文件 ${file.name} 失败`,
+                    error: error.message
+                });
+            }
+        }
+    }
+
+    /**
+     * 使用文件保存器保存单个文件 [citation](5)
+     */
+    async saveFileUsingPicker(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                // 创建文件保存器 [citation](5)
+                const picker = document.createElement('lzc-file-picker');
+                picker.setAttribute('type', 'saveAs');
+                picker.setAttribute('box-id', this.lazycatEnv.boxName);
+                picker.setAttribute('write-file-content', '');
+                picker.setAttribute('title', `保存文件: ${file.name}`);
+                picker.setAttribute('confirm-button-title', '保存到网盘');
+                picker.setAttribute('breadcrumb-root-title', '根目录');
+                
+                // 监听保存完成事件 [citation](5)
+                picker.addEventListener('done', (event) => {
+                    const result = event.detail[0];
+                    console.log('文件保存成功:', result);
+                    
+                    this.updateResults({
+                        success: true,
+                        message: `文件 ${file.name} 已保存到用户网盘`,
+                        details: {
+                            '文件名': file.name,
+                            '保存结果': result,
+                            '保存位置': '用户网盘目录'
+                        }
+                    });
+                    
+                    // 清理选择器
+                    picker.remove();
+                    resolve(result);
+                });
+                
+                picker.addEventListener('close', () => {
+                    console.log('用户取消保存');
+                    picker.remove();
+                    reject(new Error('用户取消保存'));
+                });
+                
+                // 添加到页面
+                document.body.appendChild(picker);
+                
+                // 初始化选择器 [citation](5)
+                setTimeout(() => {
+                    try {
+                        const ctx = picker._instance.exposed;
+                        ctx.init('/lzcapp/run/mnt/home'); // 初始化到 home 目录
+                        
+                        // 发送文件内容 [citation](5)
+                        const fileExtension = file.name.split('.').pop() || 'txt';
+                        const fileName = file.name.replace(/\.[^/.]+$/, ""); // 移除扩展名
+                        
+                        // 根据文件类型处理内容
+                        let content;
+                        if (file.type.startsWith('text/')) {
+                            content = e.target.result;
+                        } else {
+                            // 对于二进制文件，使用 base64 编码
+                            content = e.target.result.split(',')[1]; // 移除 data:xxx;base64, 前缀
+                        }
+                        
+                        ctx.sendSaveAsData(content, fileExtension, fileName);
+                        ctx.open();
+                    } catch (error) {
+                        console.error('初始化文件保存器失败:', error);
+                        picker.remove();
+                        reject(error);
+                    }
+                }, 300);
+            };
+            
+            reader.onerror = () => {
+                reject(new Error('读取文件失败'));
+            };
+            
+            // 根据文件类型选择读取方式
+            if (file.type.startsWith('text/')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    /**
+     * 直接上传到非 home 目录
+     */
+    async performDirectUpload() {
+        // 获取当前选中的存储类型
+        const actualStorageType = this.currentStorageType;
+        
+        console.log('=== 直接文件上传调试信息 ===');
         console.log('存储类型:', actualStorageType);
-        console.log('当前存储路径:', this.getCurrentStoragePath());
-        console.log('文件列表:', this.selectedFiles.map(f => f.name));
+        console.log('文件数量:', this.selectedFiles.length);
 
         const formData = new FormData();
-        
-        // 添加存储类型参数
         formData.append('storageType', actualStorageType);
         
-        // 添加文件
         this.selectedFiles.forEach(file => {
             formData.append('files', file);
         });
 
         try {
-            // 显示上传进度
             this.showUploadProgress();
             
             const response = await fetch(`${this.apiBaseUrl}/upload`, {
@@ -651,16 +933,13 @@ class OptimizedFilePickerTester {
                         '上传文件': result.files.map(f => ({
                             '原始名称': f.originalName,
                             '存储名称': f.filename,
-                            '文件大小': `${(f.size / 1024 / 1024).toFixed(2)} MB`,
-                            '存储路径': f.storagePath
+                            '文件大小': `${(f.size / 1024 / 1024).toFixed(2)} MB`
                         }))
                     }
                 });
                 
-                // 清空选择并刷新文件列表
                 this.clearFileSelection();
                 this.refreshUploadedFilesList();
-                
             } else {
                 throw new Error(result.error || '上传失败');
             }
@@ -740,7 +1019,7 @@ class OptimizedFilePickerTester {
         const storageMap = {
             'var': '/lzcapp/var',
             'cache': '/lzcapp/cache',
-            'home': this.currentUser?.id ? `/lzcapp/run/mnt/home/${this.currentUser.id}` : '/lzcapp/run/mnt/home',
+            'home': '/lzcapp/run/mnt/home',
             'temp': '/tmp'
         };
         return storageMap[this.currentStorageType] || storageMap['var'];
@@ -773,239 +1052,57 @@ class OptimizedFilePickerTester {
     }
 
     /**
-     * 创建文件选择器 [citation](2)
-     */
-    createFilePicker(type) {
-        if (!this.lazycatEnv || !this.lazycatEnv.boxName) {
-            this.updateResults({
-                success: false,
-                message: '环境信息未加载',
-                error: '请等待环境信息加载完成'
-            });
-            return;
-        }
-
-        // 清理之前的选择器
-        this.destroyCurrentPicker();
-        
-        const pickerWrapper = document.getElementById('pickerWrapper');
-        const pickerContainer = document.getElementById('pickerContainer');
-        const pickerTitle = document.getElementById('pickerTitle');
-        
-        if (!pickerWrapper || !pickerContainer || !pickerTitle) {
-            console.error('找不到文件选择器容器元素');
-            return;
-        }
-
-        // 创建新的文件选择器元素 [citation](2)
-        const picker = document.createElement('lzc-file-picker');
-        picker.id = `picker-${type}`;
-        picker.setAttribute('type', type);
-        picker.setAttribute('title', this.pickerTypes[type].title);
-        picker.setAttribute('confirm-button-title', '确认选择');
-        picker.setAttribute('breadcrumb-root-title', '根目录');
-        
-        // 关键设置：确保 box-id 正确设置 [citation](1)
-        picker.setAttribute('box-id', this.lazycatEnv.boxName);
-        console.log(`设置 ${type} 选择器的 box-id:`, this.lazycatEnv.boxName);
-        
-        // 特殊配置
-        if (type === 'saveAs') {
-            picker.setAttribute('write-file-content', '');
-        }
-        
-        // 添加事件监听器
-        picker.addEventListener('submit', (e) => {
-            const result = e.detail[0];
-            this.updateResults({
-                success: true,
-                message: `${this.pickerTypes[type].title}操作成功`,
-                details: result
-            });
-            console.log(`${type} 选择结果:`, result);
-        });
-        
-        picker.addEventListener('close', () => {
-            this.closePicker();
-        });
-        
-        picker.addEventListener('done', (e) => {
-            const result = e.detail[0];
-            this.updateResults({
-                success: true,
-                message: `${this.pickerTypes[type].title}保存完成`,
-                details: result
-            });
-            console.log(`${type} 保存结果:`, result);
-        });
-        
-        // 添加到容器
-        pickerWrapper.appendChild(picker);
-        this.currentPicker = picker;
-        
-        // 显示容器
-        pickerTitle.textContent = this.pickerTypes[type].title;
-        pickerContainer.style.display = 'block';
-        
-        // 初始化选择器
-        setTimeout(() => {
-            this.initializePicker(picker, type);
-        }, 100);
-    }
-
-    /**
-     * 初始化文件选择器 [citation](2)
-     */
-    initializePicker(picker, type) {
-        try {
-            if (!picker._instance || !picker._instance.exposed) {
-                setTimeout(() => this.initializePicker(picker, type), 100);
-                return;
-            }
-            
-            const ctx = picker._instance.exposed;
-            const diskPath = this.getCurrentStoragePath();
-            
-            console.log(`初始化 ${type} 选择器，磁盘路径:`, diskPath);
-            console.log('box-id:', this.lazycatEnv.boxName);
-            
-            ctx.init(diskPath);
-            
-            // 如果是保存器，设置测试内容
-            if (type === 'saveAs') {
-                const content = JSON.stringify({
-                    title: '测试数据文件',
-                    timestamp: new Date().toISOString(),
-                    environment: this.lazycatEnv,
-                    storageType: this.currentStorageType,
-                    storagePath: diskPath,
-                    testData: {
-                        message: '这是一个测试文件',
-                        deviceName: this.lazycatEnv?.boxName || 'unknown'
-                    }
-                }, null, 2);
-                
-                ctx.sendSaveAsData(content, 'json', `测试文件-${this.lazycatEnv?.boxName || 'unknown'}-${Date.now()}`);
-            }
-            
-            ctx.open();
-            
-            this.updateResults({
-                success: true,
-                message: `${this.pickerTypes[type].title}初始化成功`,
-                details: {
-                    '类型': type,
-                    '磁盘路径': diskPath,
-                    '存储类型': this.currentStorageType,
-                    'box-id': this.lazycatEnv.boxName,
-                    '文件选择器域名': `https://file.${this.lazycatEnv.boxName}.heiyu.space`
-                }
-            });
-            
-        } catch (error) {
-            console.error(`${type} 选择器初始化失败:`, error);
-            this.updateResults({
-                success: false,
-                message: `${type} 选择器初始化失败`,
-                error: error.message
-            });
-        }
-    }
-
-    /**
-     * 销毁当前选择器
-     */
-    destroyCurrentPicker() {
-        if (this.currentPicker) {
-            const pickerWrapper = document.getElementById('pickerWrapper');
-            if (pickerWrapper) {
-                pickerWrapper.innerHTML = '';
-            }
-            this.currentPicker = null;
-            console.log('已销毁当前文件选择器');
-        }
-    }
-
-    /**
-     * 关闭选择器
-     */
-    closePicker() {
-        const pickerContainer = document.getElementById('pickerContainer');
-        if (pickerContainer) {
-            pickerContainer.style.display = 'none';
-        }
-        this.destroyCurrentPicker();
-        this.updateStatus('文件选择器已关闭');
-    }
-
-    /**
      * 刷新已上传文件列表
      */
     async refreshUploadedFilesList() {
         try {
             const response = await fetch(`${this.apiBaseUrl}/files?storageType=${this.currentStorageType}`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
             const result = await response.json();
             
+            const storageInfo = document.getElementById('storageInfo');
+            const uploadedFilesList = document.getElementById('uploadedFilesList');
+            
             if (result.success) {
-                this.displayUploadedFilesList(result);
+                // 显示存储信息
+                storageInfo.innerHTML = `
+                    <div class="storage-summary">
+                        <p><strong>存储类型:</strong> ${result.storageInfo.type}</p>
+                        <p><strong>存储路径:</strong> ${result.storageInfo.uploadPath}</p>
+                        <p><strong>文件总数:</strong> ${result.storageInfo.totalFiles}</p>
+                        <p><strong>总大小:</strong> ${(result.storageInfo.totalSize / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                `;
+                
+                // 显示文件列表
+                if (result.files.length === 0) {
+                    uploadedFilesList.innerHTML = '<p class="placeholder">当前存储目录中没有文件</p>';
+                } else {
+                    const fileItems = result.files.map(file => `
+                        <div class="file-item">
+                            <div class="file-details">
+                                <span class="file-name">${file.name}</span>
+                                <span class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                                <span class="file-date">${new Date(file.created).toLocaleString()}</span>
+                            </div>
+                            <div class="file-actions">
+                                <a href="${this.apiBaseUrl}/download/${file.name}?storageType=${this.currentStorageType}" 
+                                   class="btn btn-small btn-primary" download>下载</a>
+                                <button class="btn btn-small btn-danger" 
+                                        onclick="app.deleteFile('${file.name}')">删除</button>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    uploadedFilesList.innerHTML = fileItems;
+                }
             } else {
-                throw new Error(result.error || '获取文件列表失败');
+                uploadedFilesList.innerHTML = `<p class="error">加载文件列表失败: ${result.error}</p>`;
             }
         } catch (error) {
             console.error('刷新文件列表失败:', error);
-            this.updateResults({
-                success: false,
-                message: '刷新文件列表失败',
-                error: error.message
-            });
+            const uploadedFilesList = document.getElementById('uploadedFilesList');
+            uploadedFilesList.innerHTML = `<p class="error">加载文件列表失败: ${error.message}</p>`;
         }
-    }
-
-    /**
-     * 显示已上传文件列表
-     */
-    displayUploadedFilesList(result) {
-        const fileListContainer = document.getElementById('uploadedFilesList');
-        const storageInfo = document.getElementById('storageInfo');
-        
-        if (storageInfo) {
-            storageInfo.innerHTML = `
-                <div class="storage-summary">
-                    <p><strong>存储类型:</strong> ${result.storageInfo.type}</p>
-                    <p><strong>存储路径:</strong> ${result.storageInfo.uploadPath}</p>
-                    <p><strong>文件总数:</strong> ${result.storageInfo.totalFiles}</p>
-                    <p><strong>总大小:</strong> ${(result.storageInfo.totalSize / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-            `;
-        }
-        
-        if (result.files.length === 0) {
-            fileListContainer.innerHTML = '<p class="placeholder">该存储目录下暂无文件</p>';
-            return;
-        }
-        
-        const fileItems = result.files.map(file => `
-            <div class="file-item">
-                <div class="file-details">
-                    <span class="file-name">${file.name}</span>
-                    <span class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                    <span class="file-date">${new Date(file.created).toLocaleString()}</span>
-                </div>
-                <div class="file-actions">
-                    <a href="${this.apiBaseUrl}/download/${file.name}?storageType=${this.currentStorageType}" 
-                       class="btn btn-small btn-primary" download>下载</a>
-                    <button class="btn btn-small btn-danger" 
-                            onclick="window.app.deleteFile('${file.name}')">删除</button>
-                </div>
-            </div>
-        `).join('');
-        
-        fileListContainer.innerHTML = fileItems;
     }
 
     /**
@@ -1021,20 +1118,20 @@ class OptimizedFilePickerTester {
                 method: 'DELETE'
             });
             
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
             const result = await response.json();
             
             if (result.success) {
                 this.updateResults({
                     success: true,
-                    message: `文件 "${filename}" 已删除`
+                    message: result.message
                 });
                 this.refreshUploadedFilesList();
             } else {
-                throw new Error(result.error || '删除文件失败');
+                this.updateResults({
+                    success: false,
+                    message: '删除文件失败',
+                    error: result.error
+                });
             }
         } catch (error) {
             console.error('删除文件失败:', error);
@@ -1050,7 +1147,7 @@ class OptimizedFilePickerTester {
      * 清空所有文件
      */
     async clearAllUploadedFiles() {
-        if (!confirm(`确定要清空 ${this.currentStorageType} 存储目录下的所有文件吗？此操作不可恢复！`)) {
+        if (!confirm(`确定要清空 ${this.currentStorageType} 存储目录中的所有文件吗？此操作不可恢复！`)) {
             return;
         }
         
@@ -1058,10 +1155,6 @@ class OptimizedFilePickerTester {
             const response = await fetch(`${this.apiBaseUrl}/files?storageType=${this.currentStorageType}`, {
                 method: 'DELETE'
             });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
             
             const result = await response.json();
             
@@ -1072,7 +1165,11 @@ class OptimizedFilePickerTester {
                 });
                 this.refreshUploadedFilesList();
             } else {
-                throw new Error(result.error || '清空文件失败');
+                this.updateResults({
+                    success: false,
+                    message: '清空文件失败',
+                    error: result.error
+                });
             }
         } catch (error) {
             console.error('清空文件失败:', error);
@@ -1092,7 +1189,7 @@ class OptimizedFilePickerTester {
             '懒猫微服环境': this.lazycatEnv,
             '当前用户': this.currentUser,
             '当前存储类型': this.currentStorageType,
-            '当前存储路径': this.getCurrentStoragePath(),
+            '存储路径': this.getCurrentStoragePath(),
             '浏览器信息': {
                 'User Agent': navigator.userAgent,
                 '当前URL': window.location.href,
@@ -1141,50 +1238,34 @@ class OptimizedFilePickerTester {
      */
     updateResults(result) {
         const resultsDiv = document.getElementById('results');
-        if (!resultsDiv) return;
-        
         const timestamp = new Date().toLocaleString();
-        const statusClass = result.success ? 'success' : 'error';
-        const statusIcon = result.success ? '✅' : '❌';
         
-        let detailsHtml = '';
-        if (result.details) {
-            if (Array.isArray(result.details)) {
-                detailsHtml = `
-                    <div class="result-details">
-                        <ul>
-                            ${result.details.map(detail => `<li>${detail}</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-            } else if (typeof result.details === 'object') {
-                detailsHtml = `
-                    <div class="result-details">
-                        <pre>${JSON.stringify(result.details, null, 2)}</pre>
-                    </div>
-                `;
-            }
-        }
-        
-        let errorHtml = '';
-        if (result.error) {
-            errorHtml = `
-                <div class="result-error">
-                    <strong>错误:</strong> ${result.error}
-                </div>
-            `;
-        }
-        
-        resultsDiv.innerHTML = `
-            <div class="result-item ${statusClass}">
+        let resultHtml = `
+            <div class="result-item ${result.success ? 'success' : 'error'}">
                 <div class="result-header">
-                    <span class="result-status">${statusIcon} ${result.message}</span>
-                    <span class="result-time">时间: ${timestamp}</span>
+                    <span class="result-status">${result.success ? '✅ 成功' : '❌ 失败'}</span>
+                    <span class="result-time">${timestamp}</span>
                 </div>
-                ${errorHtml}
-                ${detailsHtml}
-            </div>
+                <div class="result-message">${result.message}</div>
         `;
+        
+        if (result.error) {
+            resultHtml += `<div class="result-error">错误: ${result.error}</div>`;
+        }
+        
+        if (result.details) {
+            resultHtml += '<div class="result-details"><strong>详细信息:</strong>';
+            if (typeof result.details === 'object') {
+                resultHtml += '<pre>' + JSON.stringify(result.details, null, 2) + '</pre>';
+            } else {
+                resultHtml += `<p>${result.details}</p>`;
+            }
+            resultHtml += '</div>';
+        }
+        
+        resultHtml += '</div>';
+        
+        resultsDiv.innerHTML = resultHtml + resultsDiv.innerHTML;
     }
 
     /**
@@ -1192,29 +1273,24 @@ class OptimizedFilePickerTester {
      */
     updateStatus(message) {
         const statusDiv = document.getElementById('status');
-        if (statusDiv) {
-            const timestamp = new Date().toLocaleString();
-            statusDiv.innerHTML = `
-                <div class="status-item">
-                    <span class="status-message">${message}</span>
-                    <span class="status-time">${timestamp}</span>
-                </div>
-            `;
-        }
-        console.log('状态更新:', message);
+        const timestamp = new Date().toLocaleString();
+        
+        const statusHtml = `
+            <div class="status-item">
+                <span class="status-time">${timestamp}</span>
+                <span class="status-message">${message}</span>
+            </div>
+        `;
+        
+        statusDiv.innerHTML = statusHtml + statusDiv.innerHTML;
+        console.log(`[状态] ${message}`);
     }
 }
 
-// 创建全局应用实例
+// 全局变量，供HTML中的onclick事件使用
 let app;
 
-// 确保DOM加载完成后初始化应用
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        app = new OptimizedFilePickerTester();
-        window.app = app; // 暴露到全局作用域，供HTML中的onclick使用
-    });
-} else {
+// 启动应用
+document.addEventListener('DOMContentLoaded', () => {
     app = new OptimizedFilePickerTester();
-    window.app = app;
-}
+});

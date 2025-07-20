@@ -22,6 +22,16 @@ application:
         - LAZYCAT_APP_ID=${LAZYCAT_APP_ID}
         - NODE_ENV=production
         - PORT=3000
+      volumes:
+        - name: app-storage
+          mountPath: "/lzcapp/var"
+          size: "1Gi"
+        - name: cache-storage
+          mountPath: "/lzcapp/cache"
+          size: "500Mi"
+        - name: user-home
+          mountPath: "/lzcapp/run/mnt/home"
+          type: "user-home"
       enable_document_access: true
       enable_media_access: true
 

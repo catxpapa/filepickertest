@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home目录文件保存增强测试</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5;
+        }
+        .test-container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section { 
+            border: 1px solid #ddd; 
+            padding: 20px; 
+            margin: 20px 0; 
+            border-radius: 8px; 
+            background: #fafafa;
+        }
+        .debug-log { 
+            background: #f5f5f5; 
+            padding: 15px; 
+            border-radius: 4px; 
+            font-family: 'Courier New', monospace; 
+            white-space: pre-wrap; 
+            max-height: 500px; 
+            overflow-y: auto; 
+            border: 1px solid #ccc;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .btn { 
+            padding: 12px 20px; 
+            margin: 8px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn:disabled { 
+            background: #ccc; 
+            cursor: not-allowed; 
+            transform: none;
+        }
+        .status { 
+            padding: 12px; 
+            margin: 10px 0; 
+            border-radius: 6px; 
+            border-left: 4px solid;
+        }
+        .status.success { 
+            background: #d4edda; 
+            color: #155724; 
+            border-left-color: #28a745;
+        }
+        .status.error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border-left-color: #dc3545;
+        }
+        .status.info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border-left-color: #17a2b8;
+        }
+        .status.warning { 
+            background: #fff3cd; 
+            color: #856404; 
+            border-left-color: #ffc107;
+        }
+        .iframe-container { 
+            border: 2px solid #007bff; 
+            height: 600px; 
+            margin: 15px 0; 
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .technical-info { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin: 15px 0; 
+            border: 1px solid #dee2e6;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        h1 { color: #333; text-align: center; margin-bottom: 30px; }
+        h2 { color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        h3 { color: #6c757d; }
+        .file-info {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+    </style>
+    <!-- 引入懒猫文件选择器插件 [citation](5) -->
+    <script defer src="https://unpkg.com/@lazycatcloud/lzc-file-pickers@latest/dist/lzc-file-pickers.umd.js"></script>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🏠 Home目录文件保存增强测试</h1>
+        
+        <div class="test-section">
+            <h2>📊 环境信息</h2>
+            <div id="envInfo">正在加载环境信息...</div>
+            <div class="technical-info">
+                <h4>🔧 技术诊断信息</h4>
+                <div id="technicalInfo">正在诊断...</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📁 测试文件选择</h2>
+            <input type="file" id="testFileInput" style="display: none;" accept="image/*,application/pdf,.txt,.doc,.docx,.zip">
+            <div class="button-group">
+                <button id="selectTestFile" class="btn btn-primary">📂 选择测试文件</button>
+            </div>
+            <div id="selectedFileInfo" class="file-info" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🚀 文件保存器测试</h2>
+            <div class="button-group">
+                <button id="testBasicSaveAs" class="btn btn-success">🔧 基础保存器测试</button>
+                <button id="testAdvancedSaveAs" class="btn btn-warning">⚡ 增强保存器测试</button>
+                <button id="testFixedSaveAs" class="btn btn-info">🛠️ 修正版保存器测试</button>
+                <button id="testFileWithSaveAs" class="btn btn-primary" disabled>💾 保存选中文件</button>
+                <button id="testFixedFileWithSaveAs" class="btn btn-info" disabled>🔧 修正版文件保存</button>
+                <button id="testDirectAPI" class="btn btn-danger">🔗 直接API测试</button>
+            </div>
+            
+            <!-- 文件保存器容器 -->
+            <div id="saveAsContainer" style="display: none; margin-top: 20px;">
+                <h3>📋 文件保存器界面</h3>
+                <div id="saveAsWrapper" class="iframe-container"></div>
+                <div class="button-group">
+                    <button id="closeSaveAs" class="btn btn-secondary">❌ 关闭保存器</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📈 实时状态监控</h2>
+            <div id="statusContainer"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🐛 详细调试日志</h2>
+            <div class="button-group">
+                <button id="clearLog" class="btn btn-secondary">🗑️ 清空日志</button>
+                <button id="exportLog" class="btn btn-info">📤 导出日志</button>
+                <button id="toggleAutoScroll" class="btn btn-warning">📜 切换自动滚动</button>
+            </div>
+            <div id="debugLog" class="debug-log"></div>
+        </div>
+    </div>
+
+    <script>
+        class EnhancedHomeDirectoryTester {
+            constructor() {
+                this.lazycatEnv = null;
+                this.selectedFile = null;
+                this.currentSaveAs = null;
+                this.debugLog = document.getElementById('debugLog');
+                this.initStartTime = Date.now();
+                this.autoScroll = true;
+                
+                this.init();
+            }
+
+            async init() {
+                this.log('=== 🚀 启动增强版 Home 目录测试器 ===');
+                
+                try {
+                    // 加载环境信息
+                    await this.loadEnvironment();
+                    
+                    // 技术诊断
+                    await this.performTechnicalDiagnosis();
+                    
+                    // 绑定事件
+                    this.bindEvents();
+                    
+                    this.log('✅ 增强版 Home 目录测试器初始化完成');
+                } catch (error) {
+                    this.log('❌ 初始化失败', error.message, 'error');
+                }
+            }
+
+            async loadEnvironment() {
+                try {
+                    const response = await fetch('/api/lazycat-env');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.lazycatEnv = result.environment;
+                        this.displayEnvironmentInfo();
+                        this.log('✅ 环境信息加载成功', this.lazycatEnv);
+                    } else {
+                        throw new Error('无法获取环境信息');
+                    }
+                } catch (error) {
+                    this.log('❌ 环境信息加载失败', error.message, 'error');
+                    throw error;
+                }
+            }
+
+            async performTechnicalDiagnosis() {
+                this.log('🔍 开始技术诊断...');
+                
+                const diagnosis = {
+                    '懒猫文件选择器插件': 'unknown',
+                    'iframe通信机制': 'unknown',
+                    '文件服务器连通性': 'unknown',
+                    'postMessage支持': 'unknown',
+                    '用户权限状态': 'unknown',
+                    'CustomElements支持': 'unknown'
+                };
+
+                // 检查懒猫文件选择器插件 [citation](1)
+                try {
+                    if (typeof customElements !== 'undefined' && customElements.get('lzc-file-picker')) {
+                        diagnosis['懒猫文件选择器插件'] = '✅ 已加载';
+                    } else {
+                        diagnosis['懒猫文件选择器插件'] = '❌ 未加载';
+                    }
+                } catch (error) {
+                    diagnosis['懒猫文件选择器插件'] = '❌ 检查失败: ' + error.message;
+                }
+
+                // 检查 CustomElements 支持
+                try {
+                    if (typeof customElements !== 'undefined') {
+                        diagnosis['CustomElements支持'] = '✅ 支持';
+                    } else {
+                        diagnosis['CustomElements支持'] = '❌ 不支持';
+                    }
+                } catch (error) {
+                    diagnosis['CustomElements支持'] = '❌ 检查失败';
+                }
+
+                // 检查 postMessage 支持
+                try {
+                    if (typeof window.postMessage === 'function') {
+                        diagnosis['postMessage支持'] = '✅ 支持';
+                    } else {
+                        diagnosis['postMessage支持'] = '❌ 不支持';
+                    }
+                } catch (error) {
+                    diagnosis['postMessage支持'] = '❌ 检查失败';
+                }
+
+                // 检查文件服务器连通性
+                try {
+                    if (this.lazycatEnv && this.lazycatEnv.filePickerDomain) {
+                        diagnosis['文件服务器连通性'] = '✅ 域名可访问';
+                    }
+                } catch (error) {
+                    diagnosis['文件服务器连通性'] = '❌ 连接失败: ' + error.message;
+                }
+
+                // 检查用户权限
+                try {
+                    const userResponse = await fetch('/api/user-info');
+                    const userResult = await userResponse.json();
+                    if (userResult.success) {
+                        diagnosis['用户权限状态'] = `✅ 用户: ${userResult.user.id}, 角色: ${userResult.user.role}`;
+                    }
+                } catch (error) {
+                    diagnosis['用户权限状态'] = '❌ 获取失败: ' + error.message;
+                }
+
+                this.displayTechnicalInfo(diagnosis);
+                this.log('🔍 技术诊断完成', diagnosis);
+            }
+
+            displayEnvironmentInfo() {
+                const envInfo = document.getElementById('envInfo');
+                envInfo.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                        <div><strong>🏷️ 设备名称:</strong> ${this.lazycatEnv.boxName}</div>
+                        <div><strong>🌐 文件选择器域名:</strong> ${this.lazycatEnv.filePickerDomain}</div>
+                        <div><strong>📁 Home目录路径:</strong> /lzcapp/run/mnt/home</div>
+                        <div><strong>🔗 应用域名:</strong> ${this.lazycatEnv.appDomain}</div>
+                    </div>
+                `;
+            }
+
+            displayTechnicalInfo(diagnosis) {
+                const techInfo = document.getElementById('technicalInfo');
+                let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">';
+                for (const [key, value] of Object.entries(diagnosis)) {
+                    const isError = value.includes('❌') || value.includes('失败') || value.includes('不支持') || value === 'unknown';
+                    const statusClass = isError ? 'error' : 'success';
+                    html += `<div><strong>${key}:</strong> <span class="status ${statusClass}" style="display: inline; padding: 4px 8px; margin-left: 5px;">${value}</span></div>`;
+                }
+                html += '</div>';
+                techInfo.innerHTML = html;
+            }
+
+            bindEvents() {
+                // 文件选择
+                document.getElementById('selectTestFile').addEventListener('click', () => {
+                    document.getElementById('testFileInput').click();
+                });
+
+                document.getElementById('testFileInput').addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.selectedFile = e.target.files[0];
+                        this.displaySelectedFile();
+                        document.getElementById('testFileWithSaveAs').disabled = false;
+                        document.getElementById('testFixedFileWithSaveAs').disabled = false;
+                    }
+                });
+
+                // 测试按钮
+                document.getElementById('testBasicSaveAs').addEventListener('click', () => {
+                    this.testBasicSaveAs();
+                });
+
+                document.getElementById('testAdvancedSaveAs').addEventListener('click', () => {
+                    this.testAdvancedSaveAs();
+                });
+
+                document.getElementById('testFixedSaveAs').addEventListener('click', () => {
+                    this.testBasicSaveAsFixed();
+                });
+
+                document.getElementById('testFileWithSaveAs').addEventListener('click', () => {
+                    this.testFileWithSaveAs();
+                });
+
+                document.getElementById('testFixedFileWithSaveAs').addEventListener('click', () => {
+                    this.testFileWithSaveAsFixed();
+                });
+
+                document.getElementById('testDirectAPI').addEventListener('click', () => {
+                    this.testDirectAPI();
+                });
+
+                document.getElementById('closeSaveAs').addEventListener('click', () => {
+                    this.closeSaveAs();
+                });
+
+                // 日志操作
+                document.getElementById('clearLog').addEventListener('click', () => {
+                    this.debugLog.textContent = '';
+                });
+
+                document.getElementById('exportLog').addEventListener('click', () => {
+                    this.exportLog();
+                });
+
+                document.getElementById('toggleAutoScroll').addEventListener('click', () => {
+                    this.autoScroll = !this.autoScroll;
+                    this.showStatus(`自动滚动已${this.autoScroll ? '开启' : '关闭'}`, 'info');
+                });
+            }
+
+            displaySelectedFile() {
+                const info = document.getElementById('selectedFileInfo');
+                info.style.display = 'block';
+                info.innerHTML = `
+                    <h4>📄 已选择文件信息</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <div><strong>文件名:</strong> ${this.selectedFile.name}</div>
+                        <div><strong>文件大小:</strong> ${(this.selectedFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                        <div><strong>文件类型:</strong> ${this.selectedFile.type}</div>
+                        <div><strong>最后修改:</strong> ${new Date(this.selectedFile.lastModified).toLocaleString()}</div>
+                    </div>
+                `;
+                this.log('📄 文件选择完成', {
+                    name: this.selectedFile.name,
+                    size: this.selectedFile.size,
+                    type: this.selectedFile.type,
+                    lastModified: this.selectedFile.lastModified
+                });
+            }
+
+            // 基础文件保存器测试 [citation](5)
+            testBasicSaveAs() {
+                this.log('=== 🔧 开始基础文件保存器测试 ===');
+                
+                try {
+                    const saveAs = this.createSaveAsElement('基础保存器测试');
+                    this.setupSaveAsEvents(saveAs);
+                    this.displaySaveAs(saveAs);
+                    
+                    // 使用标准初始化方法
+                    setTimeout(() => {
+                        this.initSaveAsWithStandardMethod(saveAs, '这是基础测试内容\n时间: ' + new Date().toISOString());
+                    }, 1000);
+                    
+                } catch (error) {
+                    this.log('❌ 创建基础文件保存器失败', error.message, 'error');
+                    this.showStatus('创建基础文件保存器失败: ' + error.message, 'error');
+                }
+            }
+
+            // 增强文件保存器测试
+            testAdvancedSaveAs() {
+                this.log('=== ⚡ 开始增强文件保存器测试 ===');
+                
+                try {
+                    const saveAs = this.createSaveAsElement('增强保存器测试');
+                    this.setupAdvancedSaveAsEvents(saveAs);
+                    this.displaySaveAs(saveAs);
+                    
+                    // 使用多重初始化策略
+                    setTimeout(() => {
+                        this.initSaveAsWithMultipleStrategies(saveAs, '这是增强测试内容\n包含更多调试信息\n时间: ' + new Date().toISOString());
+                    }, 1500);
+                    
+                } catch (error) {
+                    this.log('❌ 创建增强文件保存器失败', error.message, 'error');
+                    this.showStatus('创建增强文件保存器失败: ' + error.message, 'error');
+                }
+            }
+
+            // 修正版基础保存器测试
+            testBasicSaveAsFixed() {
+                this.log('=== 🛠️ 开始修正版基础文件保存器测试 ===');
+                
+                try {
+                    const saveAs = this.createSaveAsElement('修正版基础保存器');
+                    this.setupSaveAsEvents(saveAs);
+                    this.displaySaveAs(saveAs);
+                    
+                    // 使用事件驱动初始化
+                    setTimeout(async () => {
+                        try {
+                            await this.initSaveAsWithCorrectFlow(
+                                saveAs, 
+                                '这是修正版测试内容\n时间: ' + new Date().toISOString(),
+                                'txt',
+                                '修正版测试文件'
+                            );
+                        } catch (error) {
+                            this.log('❌ 修正版初始化失败', error.message, 'error');
+                        }
+                    }, 500);
+                    
+                } catch (error) {
+                    this.log('❌ 创建修正版文件保存器失败', error.message, 'error');
+                    this.showStatus('创建修正版文件保存器失败: ' + error.message, 'error');
+                }
+            }
+
+            // 标准文件保存测试
+            testFileWithSaveAs() {
+                if (!this.selectedFile) {
+                    this.showStatus('请先选择一个文件', 'error');
+                    return;
+                }
+
+                this.log('💾 开始标准文件保存:', this.selectedFile.name);
+                this.processFileForSaving(this.selectedFile, false);
+            }
+
+            // 修正版文件保存测试
+            testFileWithSaveAsFixed() {
+                if (!this.selectedFile) {
+                    this.showStatus('请先选择一个文件', 'error');
+                    return;
+                }
+
+                this.log('🔧 开始修正版文件保存:', this.selectedFile.name);
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const saveAs = this.createSaveAsElement(`保存文件: ${this.selectedFile.name}`);
+                        
+                        // 设置正确的事件监听 [citation](5)
+                        saveAs.addEventListener('done', (event) => {
+                            const result = event.detail[0];
+                            this.log('🎉 文件保存成功!', result, 'success');
+                            
+                            // 检查保存状态
+                            if (result.status) {
+                                result.status.then((success) => {
+                                    if (success) {
+                                        this.showStatus(`文件 ${this.selectedFile.name} 已成功保存到用户网盘!`, 'success');
+                                    } else {
+                                        this.showStatus('文件保存失败', 'error');
+                                    }
+                                });
+                            }
+                            
+                            this.closeSaveAs();
+                        });
+
+                        saveAs.addEventListener('close', () => {
+                            this.log('用户取消了保存操作');
+                            this.closeSaveAs();
+                        });
+
+                        this.displaySaveAs(saveAs);
+
+                        // 处理文件内容
+                        let content;
+                        const fileExtension = this.selectedFile.name.split('.').pop() || 'txt';
+                        const fileName = this.selectedFile.name.replace(/\.[^/.]+$/, "");
+
+                        if (this.selectedFile.type.startsWith('text/')) {
+                            content = e.target.result;
+                        } else {
+                            // 对于二进制文件，使用 base64 编码
+                            content = e.target.result.split(',')[1];
+                        }
+
+                        // 使用修正的初始化方法
+                        setTimeout(async () => {
+                            try {
+                                await this.initSaveAsWithCorrectFlow(
+                                    saveAs, 
+                                    content, 
+                                    fileExtension, 
+                                    fileName
+                                );
+                            } catch (error) {
+                                this.log('❌ 文件保存初始化失败', error.message, 'error');
+                                this.showStatus('文件保存初始化失败: ' + error.message, 'error');
+                            }
+                        }, 1000); // 给足够时间让组件完全加载
+
+                    } catch (error) {
+                        this.log('❌ 处理文件失败', error.message, 'error');
+                        this.showStatus('处理文件失败: ' + error.message, 'error');
+                    }
+                };
+
+                reader.onerror = () => {
+                    this.log('❌ 读取文件失败', '', 'error');
+                    this.showStatus('读取文件失败', 'error');
+                };
+
+                // 根据文件类型选择读取方式
+                if (this.selectedFile.type.startsWith('text/')) {
+                    reader.readAsText(this.selectedFile);
+                } else {
+                    reader.readAsDataURL(this.selectedFile);
+                }
+            }
+
+            // 直接API测试
+            async testDirectAPI() {
+                this.log('=== 🔗 开始直接API测试 ===');
+                
+                if (!this.selectedFile) {
+                    this.showStatus('请先选择一个文件进行API测试', 'error');
+                    return;
+                }
+
+                try {
+                    const formData = new FormData();
+                    formData.append('files', this.selectedFile);
+                    formData.append('storageType', 'var'); // 强制使用 var 存储
+
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.log('✅ 直接API测试成功', result, 'success');
+                        this.showStatus('直接API上传成功，文件已保存到 var 目录', 'success');
+                    } else {
+                        throw new Error(result.error || '上传失败');
+                    }
+                } catch (error) {
+                    this.log('❌ 直接API测试失败', error.message, 'error');
+                    this.showStatus('直接API测试失败: ' + error.message, 'error');
+                }
+            }
+
+            // 核心方法：修正版初始化流程 [citation](5)
+            async initSaveAsWithCorrectFlow(saveAs, content, extension = 'txt', filename = null) {
+                return new Promise((resolve, reject) => {
+                    this.log('🎯 开始事件驱动初始化...');
+                    
+                    const maxRetries = 60; // 增加重试次数
+                    let retryCount = 0;
+                    const retryInterval = 500; // 重试间隔
+
+                    const tryInit = () => {
+                        try {
+                            this.log(`🔄 重试初始化 (${retryCount + 1}/${maxRetries})`);
+
+                            // 详细检查每个步骤
+                            if (!saveAs) {
+                                throw new Error('saveAs 元素不存在');
+                            }
+
+                            // 检查 _instance 是否存在
+                            if (!saveAs._instance) {
+                                retryCount++;
+                                if (retryCount < maxRetries) {
+                                    this.log('⏳ _instance 未就绪，继续等待...');
+                                    setTimeout(tryInit, retryInterval);
+                                    return;
+                                } else {
+                                    throw new Error('_instance 初始化超时');
+                                }
+                            }
+
+                            // 检查 exposed 对象
+                            if (!saveAs._instance.exposed) {
+                                retryCount++;
+                                if (retryCount < maxRetries) {
+                                    this.log('⏳ exposed 对象未就绪，继续等待...');
+                                    setTimeout(tryInit, retryInterval);
+                                    return;
+                                } else {
+                                    throw new Error('exposed 对象初始化超时');
+                                }
+                            }
+
+                            const ctx = saveAs._instance.exposed;
+                            this.log('✅ 成功获取 exposed 对象');
+
+                            // 验证所有必需方法 [citation](5)
+                            const requiredMethods = ['init', 'sendSaveAsData', 'open'];
+                            const methodStatus = {};
+                            
+                            requiredMethods.forEach(method => {
+                                methodStatus[method] = typeof ctx[method] === 'function';
+                            });
+
+                            this.log('🔍 方法可用性检查', methodStatus);
+
+                            if (!methodStatus.init || !methodStatus.sendSaveAsData || !methodStatus.open) {
+                                throw new Error('必需方法不完整: ' + JSON.stringify(methodStatus));
+                            }
+
+                            // 执行初始化序列 [citation](5)
+                            this.log('🚀 开始执行初始化序列...');
+                            
+                            // 1. 初始化到 home 目录
+                            ctx.init('/lzcapp/run/mnt/home');
+                            this.log('✅ init 方法调用成功');
+
+                            // 2. 发送文件内容和文件名 [citation](5)
+                            const finalFilename = filename || `保存文件-${Date.now()}`;
+                            ctx.sendSaveAsData(content, extension, finalFilename);
+                            this.log('✅ sendSaveAsData 方法调用成功', {
+                                extension: extension,
+                                filename: finalFilename,
+                                contentLength: content.length
+                            });
+
+                            // 3. 打开保存器
+                            ctx.open();
+                            this.log('✅ open 方法调用成功');
+
+                            this.showStatus('文件保存器初始化成功！请在弹出的窗口中选择保存位置并确认文件名', 'success');
+                            resolve(ctx);
+
+                        } catch (error) {
+                            this.log('❌ 初始化失败', error.message, 'error');
+                            
+                            retryCount++;
+                            if (retryCount < maxRetries) {
+                                setTimeout(tryInit, retryInterval);
+                            } else {
+                                this.showStatus('文件保存器初始化失败: ' + error.message, 'error');
+                                reject(error);
+                            }
+                        }
+                    };
+
+                    tryInit();
+                });
+            }
+
+            // 标准初始化方法
+            initSaveAsWithStandardMethod(saveAs, content, extension = 'txt', filename = null) {
+                const maxRetries = 30;
+                let retryCount = 0;
+
+                const tryInit = () => {
+                    try {
+                        this.log(`标准初始化尝试 (${retryCount + 1}/${maxRetries})`);
+
+                        if (!saveAs._instance || !saveAs._instance.exposed) {
+                            retryCount++;
+                            if (retryCount < maxRetries) {
+                                setTimeout(tryInit, 500);
+                                return;
+                            } else {
+                                throw new Error('标准初始化超时');
+                            }
+                        }
+
+                        const ctx = saveAs._instance.exposed;
+                        ctx.init('/lzcapp/run/mnt/home');
+                        ctx.sendSaveAsData(content, extension, filename || `测试文件-${Date.now()}`);
+                        ctx.open();
+
+                        this.log('✅ 标准初始化成功');
+                        this.showStatus('标准文件保存器初始化成功', 'success');
+
+                    } catch (error) {
+                        this.log('❌ 标准初始化失败', error.message, 'error');
+                        this.showStatus('标准初始化失败: ' + error.message, 'error');
+                    }
+                };
+
+                tryInit();
+            }
+
+            // 多重策略初始化方法
+            initSaveAsWithMultipleStrategies(saveAs, content, extension = 'txt', filename = null) {
+                this.log('=== 🎯 开始多重策略初始化 ===');
+                
+                // 策略1: 标准初始化
+                setTimeout(() => {
+                    this.log('🎯 尝试策略1: 标准初始化');
+                    this.initSaveAsWithStandardMethod(saveAs, content, extension, filename);
+                }, 1000);
+
+                // 策略2: 延迟初始化
+                setTimeout(() => {
+                    this.log('🎯 尝试策略2: 延迟初始化');
+                    this.initSaveAsWithStandardMethod(saveAs, content, extension, filename);
+                }, 2000);
+
+                // 策略3: 事件驱动初始化
+                setTimeout(async () => {
+                    this.log('🎯 尝试策略3: 事件驱动初始化');
+                    try {
+                        await this.initSaveAsWithCorrectFlow(saveAs, content, extension, filename);
+                    } catch (error) {
+                        this.log('❌ 策略3失败', error.message, 'error');
+                    }
+                }, 3000);
+            }
+
+            // 创建文件保存器元素 [citation](1)
+            createSaveAsElement(title) {
+                const saveAs = document.createElement('lzc-file-picker');
+                saveAs.setAttribute('type', 'saveAs');
+                saveAs.setAttribute('box-id', this.lazycatEnv.boxName);
+                saveAs.setAttribute('write-file-content', '');
+                saveAs.setAttribute('title', title);
+                saveAs.setAttribute('confirm-button-title', '保存到网盘');
+                saveAs.setAttribute('breadcrumb-root-title', '根目录');
+
+                this.log('🔧 文件保存器元素创建完成', {
+                    'box-id': this.lazycatEnv.boxName,
+                    type: 'saveAs',
+                    title: title
+                });
+
+                return saveAs;
+            }
+
+            // 设置基础事件监听 [citation](5)
+            setupSaveAsEvents(saveAs) {
+                saveAs.addEventListener('done', (event) => {
+                    const result = event.detail[0];
+                    this.log('🎉 文件保存成功!', result, 'success');
+                    this.showStatus('文件保存成功!', 'success');
+                    this.closeSaveAs();
+                });
+
+                saveAs.addEventListener('close', () => {
+                    this.log('用户关闭了保存器');
+                    this.closeSaveAs();
+                });
+
+                saveAs.addEventListener('submit', (event) => {
+                    this.log('📤 保存器提交事件', event.detail);
+                });
+            }
+
+            // 设置增强事件监听
+            setupAdvancedSaveAsEvents(saveAs) {
+                this.setupSaveAsEvents(saveAs);
+
+                // 添加更多事件监听
+                saveAs.addEventListener('visible', (event) => {
+                    this.log('👁️ 保存器可见性变化', event.detail);
+                });
+
+                // 监听 iframe 加载事件
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.type === 'childList') {
+                            const iframe = saveAs.querySelector('iframe');
+                            if (iframe) {
+                                this.log('🖼️ 检测到 iframe 元素');
+                                iframe.addEventListener('load', () => {
+                                    this.log('✅ iframe 加载完成');
+                                });
+                            }
+                        }
+                    });
+                });
+
+                observer.observe(saveAs, { childList: true, subtree: true });
+            }
+
+            // 显示文件保存器
+            displaySaveAs(saveAs) {
+                const wrapper = document.getElementById('saveAsWrapper');
+                wrapper.innerHTML = '';
+                wrapper.appendChild(saveAs);
+                this.currentSaveAs = saveAs;
+
+                document.getElementById('saveAsContainer').style.display = 'block';
+                this.log('📋 文件保存器已显示');
+            }
+
+            // 关闭文件保存器
+            closeSaveAs() {
+                if (this.currentSaveAs) {
+                    this.currentSaveAs.remove();
+                    this.currentSaveAs = null;
+                }
+                document.getElementById('saveAsContainer').style.display = 'none';
+                this.log('❌ 文件保存器已关闭');
+            }
+
+            // 显示状态信息
+            showStatus(message, type = 'info') {
+                const container = document.getElementById('statusContainer');
+                const status = document.createElement('div');
+                status.className = `status ${type}`;
+                status.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+                container.appendChild(status);
+                
+                if (container.children.length > 5) {
+                    container.removeChild(container.firstChild);
+                }
+            }
+
+            // 导出日志
+            exportLog() {
+                const logContent = this.debugLog.textContent;
+                const blob = new Blob([logContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `home-test-log-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.showStatus('日志已导出', 'success');
+            }
+
+            // 日志记录方法
+            log(message, data = null, level = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const elapsed = ((Date.now() - this.initStartTime) / 1000).toFixed(2);
+                
+                let icon = 'ℹ️';
+                switch (level) {
+                    case 'success': icon = '✅'; break;
+                    case 'error': icon = '❌'; break;
+                    case 'warning': icon = '⚠️'; break;
+                }
+                
+                let logEntry = `[${timestamp}] [+${elapsed}s] [${level.toUpperCase()}] ${icon} ${message}`;
+                
+                if (data) {
+                    logEntry += '\n' + JSON.stringify(data, null, 2);
+                }
+                
+                this.debugLog.textContent += logEntry + '\n\n';
+                
+                if (this.autoScroll) {
+                    this.debugLog.scrollTop = this.debugLog.scrollHeight;
+                }
+                
+                // 同时输出到控制台
+                console.log(`[HomeTest] ${message}`, data);
+            }
+        }
+
+        // 页面加载完成后启动测试器
+        window.addEventListener('DOMContentLoaded', () => {
+            new EnhancedHomeDirectoryTester();
+        });
+    </script>
+</body>
+</html>
