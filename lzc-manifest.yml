@@ -7,7 +7,7 @@ author: 懒猫微服开发者
 application:
   subdomain: filepickertest
   workdir: /lzcapp/pkg/content/
-  # multi_instance: true
+  multi_instance: true
   routes:
     - /=file:///lzcapp/pkg/content/web/
   upstreams:
