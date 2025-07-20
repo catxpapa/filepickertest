@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>懒猫微服路由测试工具</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .test-item { 
+            margin: 10px 0; 
+            padding: 15px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { background-color: #d4edda; border-left: 4px solid #28a745; }
+        .error { background-color: #f8d7da; border-left: 4px solid #dc3545; }
+        .pending { background-color: #fff3cd; border-left: 4px solid #ffc107; }
+        .info { background-color: #d1ecf1; border-left: 4px solid #17a2b8; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .btn { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 懒猫微服路由测试工具</h1>
+        <div class="info test-item">
+            <h3>📋 测试说明</h3>
+            <p>此工具用于系统化测试懒猫微服应用的API路由可访问性</p>
+            <button class="btn btn-primary" onclick="startTest()">开始全面测试</button>
+            <button class="btn btn-success" onclick="testSingleRoute()">单个路由测试</button>
+            <button class="btn btn-warning" onclick="clearResults()">清空结果</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+    
+    <script>
+        class RoutesTester {
+            constructor() {
+                this.results = document.getElementById('results');
+                this.testRoutes = [
+                    { path: '/api/health', name: '健康检查', description: '验证服务基本状态' },
+                    { path: '/api/info', name: '应用信息', description: '获取应用基本信息' },
+                    { path: '/api/lazycat-env', name: '环境变量', description: '获取懒猫微服环境配置' },
+                    { path: '/api/debug', name: '调试信息', description: '获取详细调试数据' },
+                    { path: '/api/files', name: '文件列表', description: '获取上传文件列表' },
+                    { path: '/api/routes', name: '路由列表', description: '获取所有可用API路由' }
+                ];
+            }
+            
+            async testAllRoutes() {
+                this.results.innerHTML = '<div class="pending test-item"><h3>🚀 开始全面路由测试...</h3></div>';
+                
+                for (const route of this.testRoutes) {
+                    await this.testSingleRouteInternal(route);
+                    await this.delay(500); // 避免请求过快
+                }
+                
+                this.addSummary();
+            }
+            
+            async testSingleRouteInternal(route) {
+                const testItem = document.createElement('div');
+                testItem.className = 'test-item pending';
+                testItem.innerHTML = `
+                    <h3>🔄 ${route.name} (${route.path})</h3>
+                    <p>${route.description}</p>
+                    <p>测试中...</p>
+                `;
+                this.results.appendChild(testItem);
+                
+                try {
+                    const startTime = Date.now();
+                    const response = await fetch(route.path, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const endTime = Date.now();
+                    const duration = endTime - startTime;
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        testItem.className = 'test-item success';
+                        testItem.innerHTML = `
+                            <h3>✅ ${route.name} (${route.path})</h3>
+                            <p><strong>描述:</strong> ${route.description}</p>
+                            <p><strong>状态:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>响应时间:</strong> ${duration}ms</p>
+                            <p><strong>响应数据:</strong></p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                    } else {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
+                    }
+                } catch (error) {
+                    testItem.className = 'test-item error';
+                    testItem.innerHTML = `
+                        <h3>❌ ${route.name} (${route.path})</h3>
+                        <p><strong>描述:</strong> ${route.description}</p>
+                        <p><strong>错误:</strong> ${error.message}</p>
+                        <p><strong>可能原因:</strong></p>
+                        <ul>
+                            <li>后端服务未正常启动</li>
+                            <li>路由配置错误</li>
+                            <li>网络连接问题</li>
+                            <li>CORS配置问题</li>
+                        </ul>
+                        <p><strong>建议:</strong> 检查后端日志和路由配置</p>
+                    `;
+                }
+            }
+            
+            addSummary() {
+                const successCount = document.querySelectorAll('.success').length;
+                const errorCount = document.querySelectorAll('.error').length;
+                const total = this.testRoutes.length;
+                
+                const summaryItem = document.createElement('div');
+                summaryItem.className = successCount === total ? 'test-item success' : 'test-item error';
+                summaryItem.innerHTML = `
+                    <h3>📊 测试总结</h3>
+                    <p><strong>总计:</strong> ${total} 个路由</p>
+                    <p><strong>成功:</strong> ${successCount} 个</p>
+                    <p><strong>失败:</strong> ${errorCount} 个</p>
+                    <p><strong>成功率:</strong> ${((successCount / total) * 100).toFixed(1)}%</p>
+                    ${successCount === total ? 
+                        '<p>🎉 所有路由测试通过！应用配置正确。</p>' : 
+                        '<p>⚠️ 部分路由测试失败，请检查配置和日志。</p>'
+                    }
+                `;
+                this.results.appendChild(summaryItem);
+            }
+            
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+        
+        const tester = new RoutesTester();
+        
+        function startTest() {
+            tester.testAllRoutes();
+        }
+        
+        function testSingleRoute() {
+            const path = prompt('请输入要测试的路由路径（例如：/api/health）:');
+            if (path) {
+                const route = { path, name: '自定义路由', description: '用户指定的路由测试' };
+                tester.testSingleRouteInternal(route);
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // 页面加载完成后自动开始测试
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('路由测试工具已加载');
+        });
+    </script>
+</body>
+</html>
