@@ -23,15 +23,16 @@ application:
         - NODE_ENV=production
         - PORT=3000
       volumes:
-        - name: app-storage
-          mountPath: "/lzcapp/var"
-          size: "1Gi"
+        - name: home-storage
+          mountPath: /lzcapp/run/mnt/home
+          readOnly: false
+        - name: var-storage
+          mountPath: /lzcapp/var
+          readOnly: false
         - name: cache-storage
-          mountPath: "/lzcapp/cache"
-          size: "500Mi"
-        - name: user-home
-          mountPath: "/lzcapp/run/mnt/home"
-          type: "user-home"
+          mountPath: /lzcapp/cache
+          readOnly: false
+
       enable_document_access: true
       enable_media_access: true
 
